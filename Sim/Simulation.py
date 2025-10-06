@@ -12,6 +12,7 @@ from Controller import controller  # reuse the controller from Controller.py
 
 
 DT = 0.05  # simulation timestep (s)
+MAX_SPEED = 10.0  # m/s maximum allowed speed for the boat
 
 
 def update_state(state, inputs):
@@ -57,6 +58,12 @@ def update_state(state, inputs):
     # integrate (Euler)
     vx_new = vx + a_world[0] * DT
     vy_new = vy + a_world[1] * DT
+    # enforce maximum speed limit
+    speed = math.hypot(vx_new, vy_new)
+    if speed > MAX_SPEED:
+        scale = MAX_SPEED / speed
+        vx_new *= scale
+        vy_new *= scale
     x_new = x + vx_new * DT
     y_new = y + vy_new * DT
     omega_new = omega + alpha * DT
