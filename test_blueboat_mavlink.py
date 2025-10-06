@@ -11,11 +11,13 @@ import time
 import math
 from utils.bblib import init_blueboat
 
+conn_str = "udp:127.0.0.1:14550"
+
 def test_motor_control():
     """Test des commandes moteurs via MAVLink"""
     print("Initialisation de la connexion MAVLink...")
     try:
-        mav, imu, gps, motors, nav = init_blueboat("udp:127.0.0.1:14550")
+        mav, imu, gps, motors, nav = init_blueboat(conn_str)
         print("✓ Connexion MAVLink établie")
     except Exception as e:
         print(f"✗ Erreur de connexion: {e}")
@@ -54,7 +56,7 @@ def test_navigation():
     """Test de navigation automatique"""
     print("\nTest de navigation...")
     try:
-        mav, imu, gps, motors, nav = init_blueboat("udp:127.0.0.1:14550")
+        mav, imu, gps, motors, nav = init_blueboat(conn_str)
         
         # Vérifier la lecture des capteurs
         heading = nav.get_current_heading()
@@ -80,7 +82,7 @@ def demo_arming():
     """Démonstration d'armement/désarmement"""
     print("\nDémonstration armement/désarmement...")
     try:
-        mav, imu, gps, motors, nav = init_blueboat("udp:127.0.0.1:14550")
+        mav, imu, gps, motors, nav = init_blueboat(conn_str)
         
         print("Mode MANUAL...")
         mav.set_mode("MANUAL")
