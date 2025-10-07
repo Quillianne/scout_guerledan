@@ -94,7 +94,7 @@ class MavlinkLink:
 # Moteurs via MAVLink2Rest (BlueOS)
 # ---------------------------------------------------------------------------
 class MotorDriver:
-    def __init__(self, mav_rest: MavlinkRestLink, max_cmd=250.0):
+    def __init__(self, mav_rest: MavlinkLink, max_cmd=250.0):
         """
         Contrôle moteurs BlueBoat via mavlink2rest.
         Compatible avec l'implémentation test_mavlink.py
@@ -148,7 +148,7 @@ class MotorDriver:
 # IMU via MAVLink2Rest (BlueOS)
 # ---------------------------------------------------------------------------
 class IMU:
-    def __init__(self, mav_rest: MavlinkRestLink, dt=DT):
+    def __init__(self, mav_rest: MavlinkLink, dt=DT):
         """
         IMU via mavlink2rest (compatible test_mavlink.py)
         """
@@ -191,7 +191,7 @@ class IMU:
 # GPS via MAVLink2Rest (BlueOS)
 # ---------------------------------------------------------------------------
 class GPS:
-    def __init__(self, mav_rest: MavlinkRestLink, debug=False):
+    def __init__(self, mav_rest: MavlinkLink, debug=False):
         """
         GPS via mavlink2rest (compatible test_mavlink.py)
         """
@@ -473,7 +473,7 @@ def init_blueboat(conn_str="udp:127.0.0.1:14550"):
     :return: (mav_link, imu, gps, motor_driver, navigation)
     """
     # Connexion MAVLink
-    mav = MavlinkRestLink()
+    mav = MavlinkLink()
     
     # Instances des composants
     imu = IMU(mav)
