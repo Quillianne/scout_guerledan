@@ -7,7 +7,6 @@ BlueBoat — IMU/GPS/Motors via MAVLink (ArduRover/BlueOS)
 - GPS.get_gps()/get_coords() lit GLOBAL_POSITION_INT ou GPS_RAW_INT.
 - MotorDriver utilise RC_CHANNELS_OVERRIDE pour contrôler les moteurs.
 - Navigation conserve la même API; seules les lectures capteurs changent.
-- Support mavlink2rest pour BlueOS
 """
 
 import numpy as np
@@ -94,12 +93,12 @@ class MavlinkLink:
 # Moteurs via MAVLink2Rest (BlueOS)
 # ---------------------------------------------------------------------------
 class MotorDriver:
-    def __init__(self, mav_rest: MavlinkLink, max_cmd=250.0):
+    def __init__(self, mav: MavlinkLink, max_cmd=250.0):
         """
         Contrôle moteurs BlueBoat via mavlink2rest.
         Compatible avec l'implémentation test_mavlink.py
         """
-        self.mav = mav_rest
+        self.mav = mav
         self.max_cmd = max_cmd
         
     @staticmethod
@@ -148,11 +147,11 @@ class MotorDriver:
 # IMU via MAVLink2Rest (BlueOS)
 # ---------------------------------------------------------------------------
 class IMU:
-    def __init__(self, mav_rest: MavlinkLink, dt=DT):
+    def __init__(self, mav: MavlinkLink, dt=DT):
         """
         IMU via mavlink2rest (compatible test_mavlink.py)
         """
-        self.mav = mav_rest
+        self.mav = mav
         self.dt = dt
         self._last_euler = (None, None, None)
 
@@ -191,11 +190,11 @@ class IMU:
 # GPS via MAVLink2Rest (BlueOS)
 # ---------------------------------------------------------------------------
 class GPS:
-    def __init__(self, mav_rest: MavlinkLink, debug=False):
+    def __init__(self, mav: MavlinkLink, debug=False):
         """
         GPS via mavlink2rest (compatible test_mavlink.py)
         """
-        self.mav = mav_rest
+        self.mav = mav
         self.debug = debug
         self.gps_position = None  # (lat, lon)
         self.x = None
@@ -298,14 +297,14 @@ class GPS:
 # Navigation via MAVLink2Rest (BlueOS)
 # ---------------------------------------------------------------------------
 class Navigation:
-    def __init__(self, imu_rest: IMU, gps_rest: GPS, motor_driver_rest: MotorDriver, Kp=1.0, max_speed=250):
+    def __init__(self, imu: IMU, gps: GPS, motor_driver: MotorDriver, Kp=1.0, max_speed=250):
         """
         Navigation utilisant les drivers mavlink2rest
         """
-        self.imu = imu_rest
-        self.dt = imu_rest.dt
-        self.gps = gps_rest
-        self.motor_driver = motor_driver_rest
+        self.imu = imu
+        self.dt = imu.dt
+        self.gps = gps
+        self.motor_driver = motor_driver
         self.Kp = Kp
         self.max_speed = max_speed
         self.history = []
@@ -465,15 +464,18 @@ class Navigation:
 # ---------------------------------------------------------------------------
 # Fonction utilitaire pour initialisation complète
 # ---------------------------------------------------------------------------
-def init_blueboat(conn_str="udp:127.0.0.1:14550"):
+def init_blueboat(host="192.168.2.202", port=6040, sysid=2, compid=1):
     """
     Initialise et retourne tous les composants nécessaires pour le BlueBoat.
     
-    :param conn_str: chaîne de connexion MAVLink
+    :param host: adresse IP du BlueOS
+    :param port: port mavlink2rest 
+    :param sysid: system ID
+    :param compid: component ID
     :return: (mav_link, imu, gps, motor_driver, navigation)
     """
     # Connexion MAVLink
-    mav = MavlinkLink()
+    mav = MavlinkLink(host=host, port=port, sysid=sysid, compid=compid)
     
     # Instances des composants
     imu = IMU(mav)
@@ -489,7 +491,7 @@ def init_blueboat(conn_str="udp:127.0.0.1:14550"):
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     # Initialisation complète
-    mav, imu, gps, motors, nav = init_blueboat("udp:127.0.0.1:14550")
+    mav, imu, gps, motors, nav = init_blueboat(host="192.168.2.202")
     
     # Test lecture cap/yaw
     r, p, y = imu.get_euler_angles()

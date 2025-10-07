@@ -3,16 +3,17 @@
 import argparse, time, sys, math
 
 from utils.bblib import (
-    MavlinkRestLink, IMURest, GPSRest,
-    MotorDriverRest, Navigation
+    MavlinkLink, IMU, GPS,
+    MotorDriver, Navigation
 )
 
-def build_stack(host, port, sysid, compid, max_cmd=250, dt=None):
-    mav = MavlinkRestLink(host=host, port=port, sysid=sysid, compid=compid)
-    imu = IMURest(mav, dt=dt if dt is not None else 0.1)
-    gps = GPSRest(mav, debug=False)
-    motors = MotorDriverRest(mav, max_cmd=max_cmd)
-    nav = Navigation(imu, gps, motors, Kp=1.0, max_speed=max_cmd)
+def build_stack(host, port, sysid, compid, max_cmd=250, dt=None, speed_multiplier=1.0):
+    mav = MavlinkLink(host=host, port=port, sysid=sysid, compid=compid)
+    imu = IMU(mav, dt=dt if dt is not None else 0.1)
+    gps = GPS(mav, debug=False)
+    motors = MotorDriver(mav, max_cmd=max_cmd)
+    nav_max_speed = max_cmd * max(0.0, min(1.0, speed_multiplier))  # Clamp between 0 and 1
+    nav = Navigation(imu, gps, motors, Kp=1.0, max_speed=nav_max_speed)
     return mav, imu, gps, motors, nav
 
 def cmd_imu(imu):
@@ -48,7 +49,7 @@ def cmd_drive(mav, motors, left, right, secs, rate):
 
 def cmd_head(mav, nav, heading, secs):
     print("Arming…"); print(mav.arm_disarm(True))
-    print(f"Follow heading {heading}° for {secs}s")
+    print(f"Follow heading {heading}° for {secs}s (max_speed={nav.max_speed:.1f})")
     nav.follow_heading(target_heading_deg=heading, duration_s=secs)
     print("Neutral:", nav.motor_driver.stop_motors())
     print("Disarming…"); print(mav.arm_disarm(False))
@@ -61,6 +62,7 @@ def main():
     ap.add_argument("--compid", type=int, default=1)
     ap.add_argument("--maxcmd", type=float, default=250.0)
     ap.add_argument("--dt", type=float, default=None, help="pas de boucle pour Navigation/IMU (s)")
+    ap.add_argument("--speed", type=float, default=1.0, help="multiplicateur de vitesse pour Navigation (0.0-1.0)")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("imu")
@@ -82,7 +84,7 @@ def main():
     p_head.add_argument("--secs", type=float, default=5.0)
 
     args = ap.parse_args()
-    mav, imu, gps, motors, nav = build_stack(args.host, args.port, args.sysid, args.compid, args.maxcmd, args.dt)
+    mav, imu, gps, motors, nav = build_stack(args.host, args.port, args.sysid, args.compid, args.maxcmd, args.dt, args.speed)
 
     if args.cmd == "imu":
         cmd_imu(imu)
