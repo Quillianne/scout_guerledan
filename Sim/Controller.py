@@ -10,6 +10,9 @@ def controller(state, goal):
     
     returns: [thrust_left, thrust_right]
     """
+    if goal is None:
+        return [5., 5.]  # no goal, no movement
+
     x, y, theta, vx, vy, omega = state
     xg, yg = goal
     target_coords = np.array([xg, yg])

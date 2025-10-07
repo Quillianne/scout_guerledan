@@ -10,7 +10,7 @@ except Exception:
 
 from Controller import controller  # reuse the controller from Controller.py
 from Boat import Boat
-from Path_planner import compute_target_points, compute_target_points_2
+from Path_planner import compute_target_points, compute_target_points_2, compute_target_points_3
 
 
 DT = 0.05  # simulation timestep (s)
@@ -57,17 +57,23 @@ def display(boats, goals, mothership=None):
     # if goals is a list of lists with same length as boats, treat as per-boat goals
     if goals:
         # detect per-boat goals structure
-        per_boat = isinstance(goals, (list, tuple)) and len(goals) == len(boats) and all(isinstance(g, (list, tuple)) for g in goals)
+        per_boat = (
+            isinstance(goals, (list, tuple))
+            and len(goals) == len(boats)
+            and all(isinstance(g, (list, tuple)) for g in goals)
+        )
         if per_boat:
             for i, g_list in enumerate(goals):
                 if g_list:
-                    gx = [g[0] for g in g_list]
-                    gy = [g[1] for g in g_list]
-                    ax.plot(gx, gy, marker='x', color=colors[i % len(colors)], linestyle='None', markersize=12, markeredgewidth=2)
+                    gx = [g[0] for g in g_list if g is not None]
+                    gy = [g[1] for g in g_list if g is not None]
+                    if gx and gy:
+                        ax.plot(gx, gy, marker='x', color=colors[i % len(colors)], linestyle='None', markersize=12, markeredgewidth=2)
         else:
-            gx = [g[0] for g in goals]
-            gy = [g[1] for g in goals]
-            ax.plot(gx, gy, 'rx', markersize=10, label='goals')
+            gx = [g[0] for g in goals if g is not None]
+            gy = [g[1] for g in goals if g is not None]
+            if gx and gy:
+                ax.plot(gx, gy, 'rx', markersize=10, label='goals')
 
     # draw mothership if provided
     if mothership:
@@ -138,17 +144,20 @@ def display(boats, goals, mothership=None):
     
 
 
-def simulate():
+def simulate(mode:int=1):
     """
     Main simulation loop with mothership and two scout boats in formation
     """
     # Create mothership (slower than scouts)
     mothership = Boat(x=0.0, y=0.0, theta=0.0, max_speed=5.0, max_thrust=10.0, angular_drag=5.0)
+    last_ms_position = (0, 0)  # Initialize last mothership position
     
     # Create two scout boats (A and B) - starting behind mothership
     boat_A = Boat(x=4.0, y=2.0, theta=0.1)  # Scout A (left) - default max_speed=10.0
     boat_B = Boat(x=4.0, y=-2.0, theta=-0.1)   # Scout B (right) - default max_speed=10.0
     scouts = [boat_A, boat_B]
+
+    scout_targets = [None, None]  # Initialize scout targets
     
     # Mothership waypoints (simple path)
     mothership_waypoints = [
@@ -165,8 +174,8 @@ def simulate():
     # Formation parameters (equilateral triangle)
     triangle_side_length = 6.0  # Length of each side of the triangle
 
-    last_dists = [np.sqrt(4**2+2**2), np.sqrt(4**2+2**2), np.sqrt(4**2+0**2)]
     
+    t0 = time.time()
     step = 0
     max_steps = 3000
     
@@ -212,14 +221,33 @@ def simulate():
                     print(f"Mothership reached waypoint {current_waypoint_idx}")
             
             # Compute formation target points for scouts
-            target_A, target_B = compute_target_points_2(
+            if mode == 1:
+                target_A, target_B = compute_target_points(
                 mothership.get_state(),
-                boat_A.get_state(),
-                boat_B.get_state(),
                 distance=triangle_side_length,
                 )
+            elif mode == 2:
+                target_A, target_B, last_ms_position = compute_target_points_2(
+                mothership.get_state(),
+                last_ms_position=last_ms_position,
+                distance=triangle_side_length,
+                )
+            elif mode == 3:
+                t = time.time() - t0
+                target_A, target_B, last_ms_position = compute_target_points_3(
+                    mothership.get_state(),
+                    last_ms_position=last_ms_position,
+                    t=t,
+                    distance=triangle_side_length,
+                    )
+            else:
+                print("Not valid mode selected. Please enter a valid mode")
             
-            scout_targets = [target_A, target_B]
+            if target_A is None or target_B is None:
+                # No valid targets; keep previous target
+                pass
+            else:
+                scout_targets = [target_A, target_B]
             
             # Update each scout boat using controller to reach formation targets
             for i, scout in enumerate(scouts):
@@ -244,6 +272,8 @@ def simulate():
 
 
 if __name__ == '__main__':
-    simulate()
+    # type of path planner (1, 2, or 3)
+    mode = 3
+    simulate(mode)
 
 
