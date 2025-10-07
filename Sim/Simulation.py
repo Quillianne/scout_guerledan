@@ -276,4 +276,3 @@ if __name__ == '__main__':
     mode = 3
     simulate(mode)
 
-

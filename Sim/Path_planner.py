@@ -6,6 +6,7 @@ at equal distances from the mothership's centerline.
 """
 
 import math
+import numpy as np
 
 
 def compute_target_points(mothership_state, distance=6.0):
@@ -194,10 +195,16 @@ def compute_target_points_4(mothership_state, scout_A_state, scout_B_state, last
     The scouts are positioned to keep a constant distance to the other boats.
     """
     # extract all positions
-    ms_x, ms_y = 
-    sa_x, sa_y = 
-    sb_x, sb_y = 
+    pos_ms = np.array([[mothership_state[0]], [mothership_state[1]]])
+    pos_a = np.array([[scout_A_state[0]], [scout_A_state[1]]])
+    pos_b = np.array([[scout_B_state[0]], [scout_B_state[1]]])
 
+    # compute all distances
+    dist_ms_a = np.norm(pos_ms - pos_a)
+    dist_ms_b = np.norm(pos_ms - pos_b)
+    dist_a_b = np.norm(pos_a - pos_b)
 
-
+    
+    target_A, target_B = None, None
+    
     return target_A, target_B
