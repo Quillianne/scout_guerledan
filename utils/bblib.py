@@ -7,6 +7,7 @@ BlueBoat — IMU/GPS/Motors via MAVLink (ArduRover/BlueOS)
 - GPS.get_gps()/get_coords() lit GLOBAL_POSITION_INT ou GPS_RAW_INT.
 - MotorDriver utilise RC_CHANNELS_OVERRIDE pour contrôler les moteurs.
 - Navigation conserve la même API; seules les lectures capteurs changent.
+- Support mavlink2rest pour BlueOS
 """
 
 import numpy as np
@@ -14,195 +15,187 @@ import time
 import datetime
 import socket
 import math
+import json
+import requests
 
-from pymavlink import mavutil
+
 import utils.geo_conversion as geo
 
+from settings import DT
+
 
 # ---------------------------------------------------------------------------
-# Lien MAVLink
+# Lien MAVLink2Rest (BlueOS)
 # ---------------------------------------------------------------------------
-class MavlinkLink:
-    def __init__(self, conn_str="udp:127.0.0.1:14550", timeout_heartbeat=15):
+class MavlinkRestLink:
+    def __init__(self, host="192.168.2.202", port=6040, sysid=2, compid=1, timeout=3.0):
         """
-        conn_str exemples:
-          - "udp:127.0.0.1:14550" (à bord, BlueOS)
-          - "udp:<IP_Bateau>:14550" (depuis un PC)
-          - "serial:/dev/ttyAMA0:115200"
+        Connexion via mavlink2rest API pour BlueOS
         """
-        self.master = mavutil.mavlink_connection(conn_str, autoreconnect=True)
-        self.master.wait_heartbeat(timeout=timeout_heartbeat)
+        self.base = f"http://{host}:{port}"
+        self.post_url = f"{self.base}/mavlink"
+        self.sysid = int(sysid)
+        self.compid = int(compid)
+        self.timeout = float(timeout)
+        self.session = requests.Session()
+        self.session.trust_env = False  # ignore proxies
+        self.headers = {"Content-Type": "application/json", "Accept": "application/json", "Connection": "close"}
 
-    def recv(self, typ, timeout=0.2):
-        """Renvoie le dernier message MAVLink du type demandé (ou None)."""
-        return self.master.recv_match(type=typ, blocking=True, timeout=timeout)
+    def _payload(self, message: dict):
+        return {"header": {"system_id": 255, "component_id": 0, "sequence": 0}, "message": message}
 
-    def request_rate(self, msg_id, rate_hz):
-        """Demande une fréquence d'émission spécifique (si supporté)."""
-        # rate_hz -> intervalle en microsecondes
-        interval_us = int(1e6 / max(0.1, float(rate_hz)))
-        self.master.mav.command_long_send(
-            self.master.target_system,
-            self.master.target_component,
-            mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
-            0,
-            msg_id,
-            interval_us,
-            0, 0, 0, 0, 0
-        )
+    def post_message(self, message: dict):
+        """Envoie un message MAVLink via REST"""
+        try:
+            r = self.session.post(self.post_url, data=json.dumps(self._payload(message)),
+                                headers=self.headers, timeout=self.timeout)
+            if not r.ok:
+                raise RuntimeError(f"POST {message.get('type')} -> {r.status_code} {r.text}")
+            return r.text.strip()
+        except Exception as e:
+            print(f"Erreur POST message: {e}")
+            return None
 
-    def send_rc_override(self, channels):
-        """
-        Envoi des commandes RC override pour contrôler les moteurs.
-        channels: liste de 8 valeurs PWM (1000-2000), None pour ignorer un canal.
-        """
-        # Remplacer les None par 65535 (valeur ignore)
-        rc_channels = []
-        for i in range(8):
-            if i < len(channels) and channels[i] is not None:
-                rc_channels.append(channels[i])
-            else:
-                rc_channels.append(65535)  # 65535 = ignore ce canal
-        
-        self.master.mav.rc_channels_override_send(
-            self.master.target_system,
-            self.master.target_component,
-            *rc_channels
-        )
+    def get_message(self, msg_name: str):
+        """Récupère le dernier message du type spécifié"""
+        url = f"{self.base}/mavlink/vehicles/{self.sysid}/components/{self.compid}/messages/{msg_name}"
+        try:
+            r = self.session.get(url, timeout=self.timeout)
+            if not r.ok:
+                return None
+            return r.json()
+        except Exception:
+            return None
 
-    def set_mode(self, mode):
-        """Change le mode de vol (ex: MANUAL, GUIDED, etc.)"""
-        mode_id = self.master.mode_mapping().get(mode.upper())
-        if mode_id is None:
-            print(f"Mode '{mode}' non reconnu")
-            return False
-        
-        self.master.mav.set_mode_send(
-            self.master.target_system,
-            mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
-            mode_id
-        )
-        return True
+    def send_rc_override(self, ch1=None, ch3=None):
+        """Envoi commande RC override pour moteurs"""
+        body = {
+            "type": "RC_CHANNELS_OVERRIDE",
+            "target_system": self.sysid, "target_component": self.compid,
+            "chan1_raw": 0, "chan2_raw": 0, "chan3_raw": 0, "chan4_raw": 0,
+            "chan5_raw": 0, "chan6_raw": 0, "chan7_raw": 0, "chan8_raw": 0
+        }
+        if ch1 is not None: body["chan1_raw"] = int(ch1)
+        if ch3 is not None: body["chan3_raw"] = int(ch3)
+        return self.post_message(body)
 
     def arm_disarm(self, arm=True):
-        """Arme ou désarme le véhicule"""
-        self.master.mav.command_long_send(
-            self.master.target_system,
-            self.master.target_component,
-            mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
-            0,
-            1 if arm else 0,  # 1=arm, 0=disarm
-            0, 0, 0, 0, 0, 0
-        )
+        """Arme ou désarme le véhicule via REST"""
+        return self.post_message({
+            "type": "COMMAND_LONG",
+            "command": {"type": "MAV_CMD_COMPONENT_ARM_DISARM"},
+            "param1": 1 if arm else 0,
+            "param2": 0, "param3": 0, "param4": 0, "param5": 0, "param6": 0, "param7": 0,
+            "target_system": self.sysid, "target_component": self.compid, "confirmation": 0
+        })
 
 
 # ---------------------------------------------------------------------------
-# Moteurs via MAVLink (BlueBoat)
+# Moteurs via MAVLink2Rest (BlueOS)
 # ---------------------------------------------------------------------------
-class MotorDriver:
-    def __init__(self, mav: MavlinkLink):
+class MotorDriverRest:
+    def __init__(self, mav_rest: MavlinkRestLink, max_cmd=250.0):
         """
-        Contrôle moteurs BlueBoat via MAVLink RC override.
-        
-        Pour BlueBoat:
-        - Canal 1 (throttle)
-        - Canal 3 (rudder)
-        
-        Valeurs PWM: 1000-2000 (1500 = neutre)
+        Contrôle moteurs BlueBoat via mavlink2rest.
+        Compatible avec l'implémentation test_mavlink.py
         """
-        self.mav = mav
-        self.throttle_channel = 0   # Canal 1 (index 0)
-        self.steering_channel = 2   # Canal 3 (index 2) 
-        self.pwm_neutral = 1500
-        self.pwm_min = 1000
-        self.pwm_max = 2000
+        self.mav = mav_rest
+        self.max_cmd = max_cmd
         
+    @staticmethod
+    def clamp(x, lo, hi): 
+        return lo if x < lo else hi if x > hi else x
+
+    def lr_to_ts(self, left: float, right: float):
+        """
+        Convert left/right en throttle/steering normalisés puis PWM
+        Basé sur test_mavlink.py
+        """
+        L = self.clamp(float(left) / self.max_cmd, -1.0, 1.0)
+        R = self.clamp(float(right) / self.max_cmd, -1.0, 1.0)
+        t = self.clamp((L + R) / 2.0, -1.0, 1.0)  # forward/back
+        s = self.clamp((R - L) / 2.0, -1.0, 1.0)  # right/left
+
+        ch1 = int(round(1500 - 500 * t))  # throttle: +t -> forward -> 1000
+        ch3 = int(round(1500 + 500 * s))  # steering: +s -> right
+        ch1 = self.clamp(ch1, 1000, 2000)
+        ch3 = self.clamp(ch3, 1000, 2000)
+        return ch1, ch3, t, s
+
     def send_cmd_motor(self, left_motor, right_motor):
-        """
-        Interface compatible avec l'ancienne API arduino.
-        Convertit les commandes left/right en throttle/steering.
-        
-        :param left_motor: vitesse moteur gauche (-max_speed à +max_speed)
-        :param right_motor: vitesse moteur droite (-max_speed à +max_speed)
-        """
-        # Conversion différentiel vers throttle/steering
-        throttle = (left_motor + right_motor) / 2.0  # Vitesse moyenne
-        steering = (right_motor - left_motor) / 2.0  # Différence pour la direction
-        
-        self.send_throttle_steering(throttle, steering)
+        """Interface compatible avec ancienne API arduino"""
+        ch1, ch3, t, s = self.lr_to_ts(left_motor, right_motor)
+        return self.mav.send_rc_override(ch1=ch1, ch3=ch3)
     
-    def send_throttle_steering(self, throttle, steering):
-        """
-        Envoi des commandes throttle/steering directement.
-        
-        :param throttle: commande de vitesse (-250 à +250 par exemple)
-        :param steering: commande de direction (-250 à +250 par exemple)
-        """
-        # Normalisation vers PWM 1000-2000
-        throttle_pwm = self._normalize_to_pwm(throttle, 250)
-        steering_pwm = self._normalize_to_pwm(steering, 250)
-        
-        # Préparation des 8 canaux RC (None = pas de changement)
-        channels = [None] * 8
-        channels[self.throttle_channel] = throttle_pwm
-        channels[self.steering_channel] = steering_pwm
-        
-        # Envoi des commandes
-        self.mav.send_rc_override(channels)
-    
-    def _normalize_to_pwm(self, value, max_value):
-        """Convertit une valeur [-max_value, +max_value] vers PWM [1000, 2000]"""
-        if max_value == 0:
-            return self.pwm_neutral
-        
-        normalized = np.clip(value / max_value, -1.0, 1.0)
-        pwm = self.pwm_neutral + normalized * (self.pwm_max - self.pwm_neutral) / 2
-        return int(np.clip(pwm, self.pwm_min, self.pwm_max))
+    def drive_lr(self, left: float, right: float, seconds=3.0, rate_hz=10.0):
+        """Commande moteurs pendant une durée donnée (comme test_mavlink.py)"""
+        ch1, ch3, t, s = self.lr_to_ts(left, right)
+        dt = 1.0 / self.clamp(rate_hz, 1.0, 50.0)
+        t0 = time.time()
+        while time.time() - t0 < seconds:
+            self.mav.send_rc_override(ch1=ch1, ch3=ch3)
+            time.sleep(dt)
+        # Neutre
+        self.mav.send_rc_override(ch1=1500, ch3=1500)
+        return {"ch1": ch1, "ch3": ch3, "throttle_norm": t, "steering_norm": s}
     
     def stop_motors(self):
         """Arrête tous les moteurs (position neutre)"""
-        channels = [None] * 8
-        channels[self.throttle_channel] = self.pwm_neutral
-        channels[self.steering_channel] = self.pwm_neutral
-        self.mav.send_rc_override(channels)
+        return self.mav.send_rc_override(ch1=1500, ch3=1500)
 
 
 # ---------------------------------------------------------------------------
-# IMU via MAVLink
+# IMU via MAVLink2Rest (BlueOS)
 # ---------------------------------------------------------------------------
-class IMU:
-    def __init__(self, mav: MavlinkLink, dt=0.01):
+class IMURest:
+    def __init__(self, mav_rest: MavlinkRestLink, dt=DT):
         """
-        IMU via MAVLink (ArduPilot).
-        - roll/pitch/yaw pris dans le message ATTITUDE (EKF, filtré), en radians.
+        IMU via mavlink2rest (compatible test_mavlink.py)
         """
-        self.mav = mav
+        self.mav = mav_rest
         self.dt = dt
         self._last_euler = (None, None, None)
 
     def get_euler_angles(self):
         """
-        Retourne (roll, pitch, yaw) en radians depuis MAVLink/ATTITUDE.
-        ATTITUDE est dans le repère NED, yaw=0 vers le Nord, positif vers l'Est.
-        Si aucun message n'est dispo au moment de l'appel, renvoie le dernier connu,
-        sinon (None, None, None).
+        Retourne (roll, pitch, yaw) en radians depuis mavlink2rest/ATTITUDE
+        Compatible avec test_mavlink.py get_attitude()
         """
-        msg = self.mav.recv("ATTITUDE", timeout=0.2)
-        if msg:
-            r = float(msg.roll)
-            p = float(msg.pitch)
-            y = float(msg.yaw)
+        msg_data = self.mav.get_message("ATTITUDE")
+        if msg_data and "message" in msg_data:
+            m = msg_data["message"]
+            r = float(m.get("roll", 0.0))
+            p = float(m.get("pitch", 0.0))
+            y = float(m.get("yaw", 0.0))
             self._last_euler = (r, p, y)
             return r, p, y
         return self._last_euler
 
+    def get_attitude_dict(self):
+        """
+        Version étendue retournant un dictionnaire comme test_mavlink.py
+        """
+        msg_data = self.mav.get_message("ATTITUDE")
+        if not msg_data or "message" not in msg_data:
+            return None
+        
+        m = msg_data["message"]
+        roll = float(m.get("roll", 0.0))
+        pitch = float(m.get("pitch", 0.0))
+        yaw = float(m.get("yaw", 0.0))
+        yaw_deg = (math.degrees(yaw) + 360.0) % 360.0
+        return {"roll": roll, "pitch": pitch, "yaw": yaw, "yaw_deg": yaw_deg}
+
 
 # ---------------------------------------------------------------------------
-# GPS via MAVLink
+# GPS via MAVLink2Rest (BlueOS)
 # ---------------------------------------------------------------------------
-class GPS:
-    def __init__(self, mav: MavlinkLink, debug=False):
-        self.mav = mav
+class GPSRest:
+    def __init__(self, mav_rest: MavlinkRestLink, debug=False):
+        """
+        GPS via mavlink2rest (compatible test_mavlink.py)
+        """
+        self.mav = mav_rest
         self.debug = debug
         self.gps_position = None  # (lat, lon)
         self.x = None
@@ -211,27 +204,61 @@ class GPS:
 
     def get_gps(self):
         """
-        Lit GLOBAL_POSITION_INT pour récupérer (lat, lon) en degrés décimaux.
-        Fallback: GPS_RAW_INT si besoin.
+        Compatible avec test_mavlink.py get_gps()
+        Essaie GLOBAL_POSITION_INT puis GPS_RAW_INT
         """
-        msg = self.mav.recv("GLOBAL_POSITION_INT", timeout=0.2)
-        if msg:
-            lat = msg.lat / 1e7
-            lon = msg.lon / 1e7
+        # Essayer GLOBAL_POSITION_INT d'abord
+        msg_data = self.mav.get_message("GLOBAL_POSITION_INT")
+        if msg_data and "message" in msg_data and msg_data["message"].get("lat") not in (None, 0):
+            m = msg_data["message"]
+            lat = m["lat"] / 1e7
+            lon = m["lon"] / 1e7
         else:
-            msg = self.mav.recv("GPS_RAW_INT", timeout=0.2)
-            if not msg:
+            # Fallback vers GPS_RAW_INT
+            msg_data = self.mav.get_message("GPS_RAW_INT")
+            if not msg_data or "message" not in msg_data or msg_data["message"].get("lat") in (None, 0):
                 return self.gps_position  # renvoie la dernière si on n'a rien
-            lat = msg.lat / 1e7
-            lon = msg.lon / 1e7
+            m = msg_data["message"]
+            lat = m["lat"] / 1e7
+            lon = m["lon"] / 1e7
 
         if self.debug:
             print(f"[GPS] lat={lat:.7f}, lon={lon:.7f}")
+        
         if lat != 0 and lon != 0:
             timestamp = datetime.datetime.now()
             self.gps_position = (lat, lon)
             self.gps_history.append((lat, lon, timestamp))
+        
         return self.gps_position
+
+    def get_gps_dict(self):
+        """
+        Version étendue retournant un dictionnaire comme test_mavlink.py
+        """
+        # Essayer GLOBAL_POSITION_INT d'abord
+        msg_data = self.mav.get_message("GLOBAL_POSITION_INT")
+        if msg_data and "message" in msg_data and msg_data["message"].get("lat") not in (None, 0):
+            m = msg_data["message"]
+            return {
+                "lat": m["lat"] / 1e7,
+                "lon": m["lon"] / 1e7,
+                "alt_m": m.get("alt", 0) / 1000.0,
+                "hdg_deg": (m.get("hdg", 0) / 100.0) if m.get("hdg") is not None else None
+            }
+        
+        # Fallback vers GPS_RAW_INT
+        msg_data = self.mav.get_message("GPS_RAW_INT")
+        if msg_data and "message" in msg_data and msg_data["message"].get("lat") not in (None, 0):
+            m = msg_data["message"]
+            return {
+                "lat": m["lat"] / 1e7,
+                "lon": m["lon"] / 1e7,
+                "alt_m": m.get("alt", 0) / 1000.0,
+                "hdg_deg": (m.get("cog", 0) / 100.0) if m.get("cog") is not None else None
+            }
+        
+        return None
 
     def get_coords(self):
         """Renvoie les coordonnées cartésiennes (x,y) du bateau."""
@@ -268,27 +295,23 @@ class GPS:
 
 
 # ---------------------------------------------------------------------------
-# Navigation (mise à jour pour utiliser MotorDriver MAVLink)
+# Navigation via MAVLink2Rest (BlueOS)
 # ---------------------------------------------------------------------------
 class Navigation:
-    def __init__(self, imu: IMU, gps: GPS, motor_driver: MotorDriver, Kp=1.0, max_speed=250):
+    def __init__(self, imu_rest: IMURest, gps_rest: GPSRest, motor_driver_rest: MotorDriverRest, Kp=1.0, max_speed=250):
         """
-        :param imu: IMU (MAVLink) pour l'orientation.
-        :param gps: GPS (MAVLink) pour la position.
-        :param motor_driver: MotorDriver (MAVLink) pour contrôle moteurs.
-        :param Kp: gain proportionnel sur l'erreur de cap.
-        :param max_speed: saturation moteur.
+        Navigation utilisant les drivers mavlink2rest
         """
-        self.imu = imu
-        self.dt = imu.dt
-        self.gps = gps
-        self.motor_driver = motor_driver
+        self.imu = imu_rest
+        self.dt = imu_rest.dt
+        self.gps = gps_rest
+        self.motor_driver = motor_driver_rest
         self.Kp = Kp
         self.max_speed = max_speed
         self.history = []
 
     def get_current_heading(self):
-        """Cap actuel (yaw) en degrés depuis l'IMU (ATTITUDE)."""
+        """Cap actuel (yaw) en degrés depuis l'IMU REST"""
         _, _, yaw = self.imu.get_euler_angles()
         if yaw is None:
             return None
@@ -450,19 +473,12 @@ def init_blueboat(conn_str="udp:127.0.0.1:14550"):
     :return: (mav_link, imu, gps, motor_driver, navigation)
     """
     # Connexion MAVLink
-    mav = MavlinkLink(conn_str)
-    
-    # (Optionnel) demander des fréquences d'émission confortables
-    try:
-        mav.request_rate(mavutil.mavlink.MAVLINK_MSG_ID_ATTITUDE, 20)             # ~20 Hz
-        mav.request_rate(mavutil.mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT, 10)  # ~10 Hz
-    except Exception as e:
-        print(f"Erreur lors de la configuration des fréquences: {e}")
+    mav = MavlinkRestLink()
     
     # Instances des composants
-    imu = IMU(mav)
-    gps = GPS(mav)
-    motor_driver = MotorDriver(mav)
+    imu = IMURest(mav)
+    gps = GPSRest(mav)
+    motor_driver = MotorDriverRest(mav)
     navigation = Navigation(imu, gps, motor_driver)
     
     return mav, imu, gps, motor_driver, navigation
