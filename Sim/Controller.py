@@ -19,7 +19,7 @@ def controller(state, goal):
     # gain
     Kp = 0.5
     # reference distance
-    distance = 0.2
+    distance = 1.0
     # max speed
     max_speed = 10.0
 

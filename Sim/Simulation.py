@@ -9,82 +9,38 @@ except Exception:
     plt = None
 
 from Controller import controller  # reuse the controller from Controller.py
+from Boat import Boat
+from Path_planner import compute_target_points, compute_target_points_2
 
 
 DT = 0.05  # simulation timestep (s)
 MAX_SPEED = 10.0  # m/s maximum allowed speed for the boat
 
 
-def update_state(state, inputs):
+
+
+
+def display(boats, goals, mothership=None):
     """
-    Uses the previous state and the inputs to compute the next state of the boat
+    Displays the current state of boats, mothership, and goal points
 
-    state: [x, y, theta, vx, vy, omega]
-    inputs: [thrust_left, thrust_right]
-    """
-    # simple planar rigid-body model with two thrusters located at y = +-d
-    x, y, theta, vx, vy, omega = state
-    thrust_l, thrust_r = inputs
-
-    # physical parameters (reasonable defaults)
-    m = 5.0           # mass (kg)
-    I = 0.5           # rotational inertia (kg*m^2)
-    d = 0.5           # half-distance between thrusters (m)
-    linear_drag = 3.0  # linear damping coefficient
-    angular_drag = 2.0  # angular damping
-
-    # Total forward force in body frame and torque around COM
-    F_forward = thrust_l + thrust_r
-    torque = (thrust_r - thrust_l) * d
-
-    # Convert world velocities to body frame
-    c = math.cos(theta)
-    s = math.sin(theta)
-    # rotation matrix from body -> world is R = [[c, -s], [s, c]]
-    # Therefore world -> body is R.T = [[c, s], [-s, c]]
-    v_world = np.array([vx, vy])
-    R_T = np.array([[c, s], [-s, c]])
-    v_body = R_T.dot(v_world)
-
-    # accelerations in body frame
-    ax_b = (F_forward - linear_drag * v_body[0]) / m
-    ay_b = (- linear_drag * v_body[1]) / m
-    alpha = (torque - angular_drag * omega) / I
-
-    # convert acceleration back to world frame
-    R = np.array([[c, -s], [s, c]])
-    a_world = R.dot(np.array([ax_b, ay_b]))
-
-    # integrate (Euler)
-    vx_new = vx + a_world[0] * DT
-    vy_new = vy + a_world[1] * DT
-    # enforce maximum speed limit
-    speed = math.hypot(vx_new, vy_new)
-    if speed > MAX_SPEED:
-        scale = MAX_SPEED / speed
-        vx_new *= scale
-        vy_new *= scale
-    x_new = x + vx_new * DT
-    y_new = y + vy_new * DT
-    omega_new = omega + alpha * DT
-    theta_new = theta + omega_new * DT
-
-    return [x_new, y_new, theta_new, vx_new, vy_new, omega_new]
-
-
-
-def display(state, goals):
-    """
-    Displays the current state of the boat and the goal points
-
-    state: [x, y, theta, vx, vy, omega]
-    goals: list of points [[x1, y1], [x2, y2], ...]
+    boats: list of Boat instances (scouts)
+    goals: list of points or per-boat goal lists
+    mothership: Boat instance representing the mothership (optional)
     """
     if plt is None or np is None:
         # plotting libraries not available; do nothing
         return
 
-    x, y, theta, vx, vy, omega = state
+    # boats: list of Boat instances
+    if not isinstance(boats, (list, tuple)):
+        boats = [boats]
+
+    # use the mothership or first boat to set viewport
+    if mothership:
+        x, y, theta = mothership.get_position()
+    else:
+        x, y, theta = boats[0].get_position()
 
     # persistent figure/axes
     if not hasattr(display, "fig"):
@@ -94,44 +50,82 @@ def display(state, goals):
     ax = display.ax
     ax.cla()
 
-    # plot goals
+    # simple color cycle (defined early because goals plotting may reference it)
+    colors = ['C0', 'C1', 'C2', 'C3', 'C4']
+
+    # plot goals: supports either a shared list or per-boat lists
+    # if goals is a list of lists with same length as boats, treat as per-boat goals
     if goals:
-        gx = [g[0] for g in goals]
-        gy = [g[1] for g in goals]
-        ax.plot(gx, gy, 'rx', markersize=10, label='goals')
+        # detect per-boat goals structure
+        per_boat = isinstance(goals, (list, tuple)) and len(goals) == len(boats) and all(isinstance(g, (list, tuple)) for g in goals)
+        if per_boat:
+            for i, g_list in enumerate(goals):
+                if g_list:
+                    gx = [g[0] for g in g_list]
+                    gy = [g[1] for g in g_list]
+                    ax.plot(gx, gy, marker='x', color=colors[i % len(colors)], linestyle='None', markersize=12, markeredgewidth=2)
+        else:
+            gx = [g[0] for g in goals]
+            gy = [g[1] for g in goals]
+            ax.plot(gx, gy, 'rx', markersize=10, label='goals')
 
-    # draw boat as triangle in body frame
-    boat_length = 0.8
-    boat_width = 0.5
-    # triangle points in body coords (nose, rear-left, rear-right)
-    pts_body = np.array([
-        [ boat_length/2, 0.0],
-        [-boat_length/2, -boat_width/2],
-        [-boat_length/2,  boat_width/2],
-    ])
-    c = math.cos(theta)
-    s = math.sin(theta)
-    R = np.array([[c, -s], [s, c]])
-    pts_world = (R.dot(pts_body.T)).T + np.array([x, y])
-    poly = plt.Polygon(pts_world, color='C0', alpha=0.8)
-    ax.add_patch(poly)
+    # draw mothership if provided
+    if mothership:
+        mx, my, mtheta = mothership.get_position()
+        boat_length = 1.2  # larger for mothership
+        boat_width = 0.7
+        pts_body = np.array([
+            [ boat_length/2, 0.0],
+            [-boat_length/2, -boat_width/2],
+            [-boat_length/2,  boat_width/2],
+        ])
+        c = math.cos(mtheta)
+        s = math.sin(mtheta)
+        R = np.array([[c, -s], [s, c]])
+        pts_world = (R.dot(pts_body.T)).T + np.array([mx, my])
+        poly = plt.Polygon(pts_world, color='red', alpha=0.9, label='Mothership')
+        ax.add_patch(poly)
+        
+        # heading arrow for mothership
+        ax.arrow(mx, my, 0.9 * math.cos(mtheta), 0.9 * math.sin(mtheta),
+                 head_width=0.12, head_length=0.18, fc='darkred', ec='darkred')
 
-    # heading arrow
-    ax.arrow(x, y, 0.7 * math.cos(theta), 0.7 * math.sin(theta),
-             head_width=0.1, head_length=0.15, fc='k', ec='k')
+    # draw all scout boats
+    for i, boat in enumerate(boats):
+        bx, by, btheta = boat.get_position()
+        boat_length = 0.8
+        boat_width = 0.5
+        pts_body = np.array([
+            [ boat_length/2, 0.0],
+            [-boat_length/2, -boat_width/2],
+            [-boat_length/2,  boat_width/2],
+        ])
+        c = math.cos(btheta)
+        s = math.sin(btheta)
+        R = np.array([[c, -s], [s, c]])
+        pts_world = (R.dot(pts_body.T)).T + np.array([bx, by])
+        poly = plt.Polygon(pts_world, color=colors[i % len(colors)], alpha=0.8)
+        ax.add_patch(poly)
 
-    # draw path history if provided
-    if hasattr(display, 'history'):
-        display.history.append((x, y))
-    else:
-        display.history = [(x, y)]
+        # heading arrow
+        ax.arrow(bx, by, 0.7 * math.cos(btheta), 0.7 * math.sin(btheta),
+                 head_width=0.08, head_length=0.12, fc='k', ec='k')
 
-    hx = [p[0] for p in display.history]
-    hy = [p[1] for p in display.history]
-    ax.plot(hx, hy, color='C0', linewidth=1, alpha=0.6)
+        # draw path history per-boat
+        if not hasattr(display, 'histories'):
+            display.histories = [[] for _ in boats]
 
-    # viewport centered around current position
-    margin = 5.0
+        # ensure histories list is long enough
+        while len(display.histories) < len(boats):
+            display.histories.append([])
+
+        display.histories[i].append((bx, by))
+        hx = [p[0] for p in display.histories[i]]
+        hy = [p[1] for p in display.histories[i]]
+        ax.plot(hx, hy, color=colors[i % len(colors)], linewidth=1, alpha=0.6)
+
+    # viewport centered around mothership/first boat position (zoomed out)
+    margin = 15.0
     ax.set_xlim(x - margin, x + margin)
     ax.set_ylim(y - margin, y + margin)
 
@@ -146,38 +140,107 @@ def display(state, goals):
 
 def simulate():
     """
-    Main simulation loop
+    Main simulation loop with mothership and two scout boats in formation
     """
-    # initial state [x, y, theta, vx, vy, omega]
-    state = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    # Create mothership (slower than scouts)
+    mothership = Boat(x=0.0, y=0.0, theta=0.0, max_speed=5.0, max_thrust=10.0, angular_drag=5.0)
+    
+    # Create two scout boats (A and B) - starting behind mothership
+    boat_A = Boat(x=4.0, y=2.0, theta=0.1)  # Scout A (left) - default max_speed=10.0
+    boat_B = Boat(x=4.0, y=-2.0, theta=-0.1)   # Scout B (right) - default max_speed=10.0
+    scouts = [boat_A, boat_B]
+    
+    # Mothership waypoints (simple path)
+    mothership_waypoints = [
+        [15.0, 0.0],
+        [30.0, 10.0],
+        [40.0, 10.0],
+        [40.0, 0.0],
+        [30.0, -10.0],
+        [20.0, -1.0],
+        [10.0, 0.0]
+    ]
+    current_waypoint_idx = 0
+    
+    # Formation parameters (equilateral triangle)
+    triangle_side_length = 6.0  # Length of each side of the triangle
 
-    # define a sequence of goals
-    goals = [[6.0, 2.0], [10.0, 0.0], [8.0, -4.0], [0.0, 0.0]]
-
+    last_dists = [np.sqrt(4**2+2**2), np.sqrt(4**2+2**2), np.sqrt(4**2+0**2)]
+    
     step = 0
-    max_steps = 2000
+    max_steps = 3000
+    
     try:
-        while step < max_steps and goals:
-            current_goal = goals[0]
-            inputs = controller(state, current_goal)
-            state = update_state(state, inputs)
-
-            # display
-            display(state, goals)
-
-            # check arrival
-            dx = current_goal[0] - state[0]
-            dy = current_goal[1] - state[1]
-            if math.hypot(dx, dy) < 0.4:
-                # reached the goal
-                goals.pop(0)
-
+        while step < max_steps and current_waypoint_idx < len(mothership_waypoints):
+            # Get current mothership waypoint
+            target_waypoint = mothership_waypoints[current_waypoint_idx]
+            
+            # Simple proportional controller for mothership (direct waypoint following)
+            ms_state = mothership.get_state()
+            ms_x, ms_y, ms_theta = mothership.get_position()
+            
+            # Calculate mothership control
+            dx = target_waypoint[0] - ms_x
+            dy = target_waypoint[1] - ms_y
+            desired_theta = math.atan2(dy, dx)
+            
+            # Angle error
+            angle_error = desired_theta - ms_theta
+            while angle_error > math.pi: angle_error -= 2*math.pi
+            while angle_error < -math.pi: angle_error += 2*math.pi
+            
+            distance = math.hypot(dx, dy)
+            
+            # Simple proportional control for mothership (reduced gains for slower movement)
+            base_thrust = min(1.0 * distance, 6.0)
+            steering = 5.0 * angle_error  # Low gain for slow, wide turns
+            
+            ms_thrust_l = base_thrust - steering
+            ms_thrust_r = base_thrust + steering
+            
+            # Clamp mothership thrust
+            ms_thrust_l = max(-5.0, min(5.0, ms_thrust_l))
+            ms_thrust_r = max(-5.0, min(5.0, ms_thrust_r))
+            
+            # Update mothership
+            mothership.step(ms_thrust_l, ms_thrust_r, DT)
+            
+            # Check if mothership reached waypoint
+            if distance < 1.0:
+                current_waypoint_idx += 1
+                if current_waypoint_idx < len(mothership_waypoints):
+                    print(f"Mothership reached waypoint {current_waypoint_idx}")
+            
+            # Compute formation target points for scouts
+            target_A, target_B = compute_target_points_2(
+                mothership.get_state(),
+                boat_A.get_state(),
+                boat_B.get_state(),
+                distance=triangle_side_length,
+                )
+            
+            scout_targets = [target_A, target_B]
+            
+            # Update each scout boat using controller to reach formation targets
+            for i, scout in enumerate(scouts):
+                target = scout_targets[i]
+                state = scout.get_state()
+                thrust_l, thrust_r = controller(state, target)
+                scout.step(thrust_l, thrust_r, DT)
+            
+            # Display mothership and scouts
+            # Pass scout targets as per-boat goals: [[target_A], [target_B]]
+            goals_for_display = [[target_A], [target_B]]
+            display(scouts, goals_for_display, mothership=mothership)
+            
             step += 1
             time.sleep(DT * 0.6)
+            
     except KeyboardInterrupt:
         print('Simulation interrupted by user')
-
-    print('Simulation finished at step', step, 'state=', state)
+    
+    print(f'Simulation finished at step {step}')
+    print(f'Mothership reached {current_waypoint_idx}/{len(mothership_waypoints)} waypoints')
 
 
 if __name__ == '__main__':
