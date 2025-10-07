@@ -2,7 +2,10 @@ import numpy as np
 import sys, os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from settings import POINT_BASE, RHO
+#from settings import POINT_BASE, RHO
+
+RHO = 6400e3
+POINT_BASE = [48.199213, -3.014601]
 
 def convert_to_decimal_degrees(ddmmss, direction):
     """
