@@ -27,7 +27,7 @@ from settings import DT
 # ---------------------------------------------------------------------------
 # Lien MAVLink2Rest (BlueOS)
 # ---------------------------------------------------------------------------
-class MavlinkRestLink:
+class MavlinkLink:
     def __init__(self, host="192.168.2.202", port=6040, sysid=2, compid=1, timeout=3.0):
         """
         Connexion via mavlink2rest API pour BlueOS
@@ -93,7 +93,7 @@ class MavlinkRestLink:
 # ---------------------------------------------------------------------------
 # Moteurs via MAVLink2Rest (BlueOS)
 # ---------------------------------------------------------------------------
-class MotorDriverRest:
+class MotorDriver:
     def __init__(self, mav_rest: MavlinkRestLink, max_cmd=250.0):
         """
         Contrôle moteurs BlueBoat via mavlink2rest.
@@ -147,7 +147,7 @@ class MotorDriverRest:
 # ---------------------------------------------------------------------------
 # IMU via MAVLink2Rest (BlueOS)
 # ---------------------------------------------------------------------------
-class IMURest:
+class IMU:
     def __init__(self, mav_rest: MavlinkRestLink, dt=DT):
         """
         IMU via mavlink2rest (compatible test_mavlink.py)
@@ -190,7 +190,7 @@ class IMURest:
 # ---------------------------------------------------------------------------
 # GPS via MAVLink2Rest (BlueOS)
 # ---------------------------------------------------------------------------
-class GPSRest:
+class GPS:
     def __init__(self, mav_rest: MavlinkRestLink, debug=False):
         """
         GPS via mavlink2rest (compatible test_mavlink.py)
@@ -298,7 +298,7 @@ class GPSRest:
 # Navigation via MAVLink2Rest (BlueOS)
 # ---------------------------------------------------------------------------
 class Navigation:
-    def __init__(self, imu_rest: IMURest, gps_rest: GPSRest, motor_driver_rest: MotorDriverRest, Kp=1.0, max_speed=250):
+    def __init__(self, imu_rest: IMU, gps_rest: GPS, motor_driver_rest: MotorDriver, Kp=1.0, max_speed=250):
         """
         Navigation utilisant les drivers mavlink2rest
         """
@@ -476,9 +476,9 @@ def init_blueboat(conn_str="udp:127.0.0.1:14550"):
     mav = MavlinkRestLink()
     
     # Instances des composants
-    imu = IMURest(mav)
-    gps = GPSRest(mav)
-    motor_driver = MotorDriverRest(mav)
+    imu = IMU(mav)
+    gps = GPS(mav)
+    motor_driver = MotorDriver(mav)
     navigation = Navigation(imu, gps, motor_driver)
     
     return mav, imu, gps, motor_driver, navigation
