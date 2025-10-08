@@ -20,7 +20,7 @@ import requests
 
 import utils.geo_conversion as geo
 
-from settings import DT
+from utils.settings import DT, KP, MAX_CMD, BASE_SPEED_MULTIPLIER
 
 
 # ---------------------------------------------------------------------------
@@ -101,6 +101,11 @@ class MotorDriver:
         self.mav = mav
         self.max_cmd = max_cmd
         
+    def __del__(self):
+        self.stop_motors()
+        self.mav.arm_disarm(arm=False)
+        
+
     @staticmethod
     def clamp(x, lo, hi): 
         return lo if x < lo else hi if x > hi else x
@@ -297,7 +302,7 @@ class GPS:
 # Navigation via MAVLink2Rest (BlueOS)
 # ---------------------------------------------------------------------------
 class Navigation:
-    def __init__(self, imu: IMU, gps: GPS, motor_driver: MotorDriver, Kp=1.0, max_speed=250):
+    def __init__(self, imu: IMU, gps: GPS, motor_driver: MotorDriver, Kp=3.0, max_cmd=250, base_speed_multiplier=0.5):
         """
         Navigation utilisant les drivers mavlink2rest
         """
@@ -306,7 +311,8 @@ class Navigation:
         self.gps = gps
         self.motor_driver = motor_driver
         self.Kp = Kp
-        self.max_speed = max_speed
+        self.max_cmd = max_cmd
+        self.base_speed = max_cmd*base_speed_multiplier
         self.history = []
 
     def get_current_heading(self):
@@ -333,12 +339,11 @@ class Navigation:
 
             correction = self.Kp * error
 
-            base_speed = self.max_speed * 0.5
-            left_motor = base_speed + correction
-            right_motor = base_speed - correction
+            left_motor = self.base_speed + correction
+            right_motor = self.base_speed - correction
             #print(left_motor,right_motor)
-            left_motor = np.clip(left_motor, -self.max_speed, self.max_speed)
-            right_motor = np.clip(right_motor, -self.max_speed, self.max_speed)
+            left_motor = np.clip(left_motor, -self.max_cmd, self.max_cmd)
+            right_motor = np.clip(right_motor, -self.max_cmd, self.max_cmd)
 
             self.motor_driver.send_cmd_motor(left_motor, right_motor)
             print(f"Target:{target_heading_deg:.1f}  Current:{current_heading:.1f}  Error:{error:.1f}", end="\r")
@@ -348,55 +353,7 @@ class Navigation:
         self.motor_driver.send_cmd_motor(0, 0)
         print("\nNavigation complete. Motors stopped.")
 
-    def follow_trajectory(self, f, fdot, duration=500, stop_motor=True):
-        """
-        Suivre une trajectoire paramétrée f(t) (pos) et fdot(t) (vit), pendant 'duration' s.
-        """
-        t0 = time.time()
-        time_elapsed = 0.0
-        while time_elapsed < duration:
-            t = time.time()
-            time_elapsed = t - t0
-            x, y = f(t)          # position cible
-            vx, vy = fdot(t)     # vitesse cible (non utilisée ici)
-            px, py = self.gps.get_coords()  # position bateau
-            self.history.append((np.array((x, y)), np.array((px, py))))
 
-            if px is not None and py is not None:
-                # cap vers la cible
-                vector_to_target = np.array([x, y]) - np.array([px, py])
-                distance = np.linalg.norm(vector_to_target)
-                heading_to_follow = (-math.degrees(math.atan2(vector_to_target[1], vector_to_target[0])) + 360.0) % 360.0
-
-                current_heading = self.get_current_heading()
-                if current_heading is None:
-                    time.sleep(self.dt)
-                    continue
-
-                error = current_heading - heading_to_follow
-                if error > 180: error -= 360
-                elif error < -180: error += 360
-                correction = self.Kp * error
-
-                # correction proportionnelle à la distance
-                reference_distance = 5.0
-                distance_correction = math.tanh(distance / reference_distance)
-
-                base_speed = self.max_speed * 0.9
-                left_motor = distance_correction * base_speed - correction
-                right_motor = distance_correction * base_speed + correction
-
-                left_motor = np.clip(left_motor, -self.max_speed, self.max_speed)
-                right_motor = np.clip(right_motor, -self.max_speed, self.max_speed)
-
-                self.motor_driver.send_cmd_motor(left_motor, right_motor)
-                print(f"Vm:{distance_correction*base_speed:6.2f}  D_Corr:{distance_correction:4.2f}  Err:{error:6.2f}  Dist:{distance:6.2f}", end="\r")
-                time.sleep(self.dt)
-
-        if stop_motor:
-            self.motor_driver.send_cmd_motor(0, 0)
-        np.savez("log/trajectory.npz", history=self.history)
-        self.history = []
 
     def go_to_gps(self, target_coords, cartesian=True, distance=5.0):
         """
@@ -412,7 +369,7 @@ class Navigation:
             current_coords = np.array(self.gps.get_coords(), dtype=object)
             if current_coords[0] is not None and current_coords[1] is not None:
                 delta = target_coords - current_coords.astype(float)
-                target_heading = (-math.degrees(math.atan2(delta[1], delta[0])) + 360.0) % 360.0
+                target_heading = (math.degrees(math.atan2(delta[1], delta[0])) + 360.0) % 360.0
                 distance_target = float(np.linalg.norm(delta))
 
                 current_heading = self.get_current_heading()
@@ -420,23 +377,22 @@ class Navigation:
                     time.sleep(self.dt)
                     continue
 
-                error = current_heading - target_heading
-                if error > 180: error -= 360
-                elif error < -180: error += 360
+                error = target_heading - current_heading
+                error = (error + 180) % 360 - 180
                 correction = self.Kp * error
 
                 reference_distance = distance
                 distance_correction = math.tanh(distance_target / reference_distance)
 
-                base_speed = self.max_speed * 0.9
-                left_motor = distance_correction * base_speed - correction
-                right_motor = distance_correction * base_speed + correction
+                left_motor = distance_correction * self.base_speed + correction
+                right_motor = distance_correction * self.base_speed - correction
 
-                left_motor = np.clip(left_motor, -self.max_speed, self.max_speed)
-                right_motor = np.clip(right_motor, -self.max_speed, self.max_speed)
+                left_motor = np.clip(left_motor, -self.max_cmd, self.max_cmd)
+                right_motor = np.clip(right_motor, -self.max_cmd, self.max_cmd)
+                #print(left_motor,right_motor)
 
                 self.motor_driver.send_cmd_motor(left_motor, right_motor)
-                print(f"Vm:{distance_correction*base_speed:6.2f}  D_Corr:{distance_correction:4.2f}  Err:{error:6.2f}  Dist:{distance_target:6.2f}", end="\r")
+                print(f"Vm:{distance_correction*self.base_speed:6.2f}  D_Corr:{distance_correction:4.2f}  Err:{error:6.2f}  Dist:{distance_target:6.2f}", end="\r")
                 time.sleep(self.dt)
 
         self.motor_driver.send_cmd_motor(0, 0)
@@ -444,7 +400,7 @@ class Navigation:
     def return_home(self):
         # Exemples de points GPS (à adapter)
         self.go_to_gps((48.1990856, -3.0155828), cartesian=False, distance=6)
-        self.go_to_gps((48.1990483, -3.014815), cartesian=False, distance=6.5)
+        self.go_to_gps((48.1990483, -3.014815), cartesian=False, distance=10)
 
     def stay_at(self, point, cartesien=False):
         """
@@ -464,7 +420,8 @@ class Navigation:
 # ---------------------------------------------------------------------------
 # Fonction utilitaire pour initialisation complète
 # ---------------------------------------------------------------------------
-def init_blueboat(host="192.168.2.202", port=6040, sysid=2, compid=1):
+
+def init_blueboat(host="192.168.2.202", port=6040, sysid=2, compid=1, max_cmd=MAX_CMD, dt=DT ,Kp=KP ,base_speed_multiplier=BASE_SPEED_MULTIPLIER):
     """
     Initialise et retourne tous les composants nécessaires pour le BlueBoat.
     
@@ -478,10 +435,10 @@ def init_blueboat(host="192.168.2.202", port=6040, sysid=2, compid=1):
     mav = MavlinkLink(host=host, port=port, sysid=sysid, compid=compid)
     
     # Instances des composants
-    imu = IMU(mav)
+    imu = IMU(mav, dt=dt)
     gps = GPS(mav)
     motor_driver = MotorDriver(mav)
-    navigation = Navigation(imu, gps, motor_driver)
+    navigation = Navigation(imu, gps, motor_driver, max_cmd=max_cmd, Kp=Kp, base_speed_multiplier=base_speed_multiplier)
     
     return mav, imu, gps, motor_driver, navigation
 

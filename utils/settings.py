@@ -1,7 +1,13 @@
 # settings.py
 import os
 
-DT = 0.05
 RHO = 6371000
+POINT_BASE = (48.1996872, -3.0153766)
+
+DT = 0.05
+KP = 3
+MAX_CMD = 250
+BASE_SPEED_MULTIPLIER = 0.5
+
 
 
