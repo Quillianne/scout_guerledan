@@ -8,4 +8,4 @@ In the Path_planner file, there are several algorithms to tell the scouts where 
 
     - compute_target_points_3() : same as n°2 but with lower refresh rate of data.
 
-    - compute_target_points_4() : #WIP uses only the distances to place the scouts. 
+    - compute_target_points_4() : #WIP uses only the distances to place the scouts. needs intervals.
