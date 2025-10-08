@@ -1,8 +1,10 @@
 from pymavlink import mavutil
+import numpy as np
 
 class Motors:
     def __init__(self, bb):
         self.bb = bb
+        self.arm()
 
     def arm(self):
         print("Sending arm command")
@@ -32,12 +34,12 @@ class Motors:
         """
         Send a command to the motors. Command given must be between 400 and -400.
         """
-        print("Sending command")
+        print(f"Sending command ({throttle}, {steer})")
         self.bb.mav.rc_channels_override_send(self.bb.target_system,
                                          self.bb.target_component,
-                                         -throttle + 1500,
+                                         np.clip(-int(throttle) + 1500, 1100, 1900),
                                          0,
-                                         -steer + 1500,
+                                         np.clip(int(steer) + 1500, 1100, 1900),
                                          0,
                                          0,
                                          0,
@@ -61,6 +63,9 @@ class Motors:
     def status(self):
         return self.bb.motors_armed()
 
+    def __exit__(self):
+        self.stop()
+        self.disarm()
     def __del__(self):
         self.stop()
         self.disarm()
