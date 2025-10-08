@@ -3,6 +3,8 @@
 This module computes target points for two scout boats (A and B) that maintain
 a V-formation in front of the mothership. The boats are positioned symmetrically
 at equal distances from the mothership's centerline.
+
+All positions are represented as 2D column vectors: np.array([[x], [y]])
 """
 
 import math
@@ -28,11 +30,12 @@ def compute_target_points(mothership_state, distance=6.0):
     Returns:
     --------
     tuple : (target_A, target_B)
-        target_A : [x, y] - target position for scout A (left front vertex)
-        target_B : [x, y] - target position for scout B (right front vertex)
+        target_A : np.array([[x], [y]]) - target position for scout A (left front vertex)
+        target_B : np.array([[x], [y]]) - target position for scout B (right front vertex)
     """
     # Extract mothership position and heading
-    ms_x, ms_y, ms_theta = mothership_state[0], mothership_state[1], mothership_state[2]
+    ms_pos = np.array([[mothership_state[0]], [mothership_state[1]]])
+    ms_theta = mothership_state[2]
     
     # For an equilateral triangle with mothership at rear vertex:
     # - Each scout is at distance = side_length from mothership
@@ -42,21 +45,15 @@ def compute_target_points(mothership_state, distance=6.0):
     side = distance
     
     # Angle offset for equilateral triangle: 30 degrees = pi/6 radians
-    angle_offset = math.pi / 6.0
+    angle_offset = np.pi / 6.0
     
     # Boat A target: at angle (heading + 30°), distance = side_length
     angle_A = ms_theta + angle_offset
-    target_A = [
-        ms_x + side * math.cos(angle_A),
-        ms_y + side * math.sin(angle_A)
-    ]
+    target_A = ms_pos + side * np.array([[np.cos(angle_A)], [np.sin(angle_A)]])
     
     # Boat B target: at angle (heading - 30°), distance = side_length
     angle_B = ms_theta - angle_offset
-    target_B = [
-        ms_x + side * math.cos(angle_B),
-        ms_y + side * math.sin(angle_B)
-    ]
+    target_B = ms_pos + side * np.array([[np.cos(angle_B)], [np.sin(angle_B)]])
     
     return target_A, target_B
 
@@ -75,50 +72,45 @@ def compute_target_points_2(mothership_state, last_ms_position, distance=6.0):
     -----------
     mothership_state : list or tuple
         [x, y, theta, vx, vy, omega] - mothership state
-    last_ms_position: list or tuple
-        [last_ms_x, last_ms_y]
+    last_ms_position: np.array([[x], [y]])
+        Previous mothership position as 2D column vector
     distance : float
         Desired distance between boats and from mothership (meters). Default is 6.0.
     
     Returns:
     --------
-    tuple : (target_A, target_B)
-        target_A : [x, y] - target position for scout A
-        target_B : [x, y] - target position for scout B
+    tuple : (target_A, target_B, updated_last_ms_position)
+        target_A : np.array([[x], [y]]) - target position for scout A
+        target_B : np.array([[x], [y]]) - target position for scout B
+        updated_last_ms_position : np.array([[x], [y]]) - current MS position for next iteration
     """
-    # extract position of Mothership
-    ms_x, ms_y = mothership_state[0], mothership_state[1]
+    # extract position of Mothership as column vector
+    ms_pos = np.array([[mothership_state[0]], [mothership_state[1]]])
 
-    # estimate heading of Motherboat
-    prev_x, prev_y = last_ms_position[0], last_ms_position[1]
-    dx = ms_x - prev_x
-    dy = ms_y - prev_y
-    norm = math.hypot(dx, dy)
-    if norm == 0:
-        dir_x, dir_y = 1.0, 0.0  # Default direction if no movement
+    # estimate heading of Motherboat from movement
+    dx_vec = ms_pos - last_ms_position
+    norm = np.linalg.norm(dx_vec)
+    
+    if norm < 1e-6:
+        # Default direction if no movement
+        dir_vec = np.array([[1.0], [0.0]])
     else:
-        dir_x, dir_y = dx / norm, dy / norm
+        dir_vec = dx_vec / norm
 
     # Place midpoint at the desired distance from mothership
-    target_mid_x = ms_x + dir_x * distance
-    target_mid_y = ms_y + dir_y * distance
+    target_mid = ms_pos + dir_vec * distance
 
-    # Vector perpendicular to direction
-    perp_x = -dir_y
-    perp_y = dir_x
+    # Vector perpendicular to direction (rotate 90° left)
+    perp_vec = np.array([[-dir_vec[1, 0]], [dir_vec[0, 0]]])
 
     # Compute target positions for A and B symmetrically
-    target_A = [
-        target_mid_x + perp_x * (distance / 2),
-        target_mid_y + perp_y * (distance / 2)
-    ]
-    target_B = [
-        target_mid_x - perp_x * (distance / 2),
-        target_mid_y - perp_y * (distance / 2)
-    ]
-    last_ms_position = (ms_x, ms_y)
+    target_A = target_mid + perp_vec * (distance / 2)
+    target_B = target_mid - perp_vec * (distance / 2)
+    
+    # Update last position
+    updated_last_ms_position = ms_pos.copy()
 
-    return target_A, target_B, last_ms_position
+    return target_A, target_B, updated_last_ms_position
 
 
 
@@ -135,8 +127,8 @@ def compute_target_points_3(mothership_state, last_ms_position, t:float, distanc
     -----------
     mothership_state : list or tuple
         [x, y, theta, vx, vy, omega] - mothership state
-    last_ms_position: list or tuple
-        [last_ms_x, last_ms_y]
+    last_ms_position: np.array([[x], [y]])
+        Previous mothership position as 2D column vector
     t: float
         Current time (seconds) to modulate the formation update rate.
     distance : float
@@ -144,55 +136,65 @@ def compute_target_points_3(mothership_state, last_ms_position, t:float, distanc
     
     Returns:
     --------
-    tuple : (target_A, target_B)
-        target_A : [x, y] - target position for scout A
-        target_B : [x, y] - target position for scout B
+    tuple : (target_A, target_B, updated_last_ms_position)
+        target_A : np.array([[x], [y]]) or None - target position for scout A
+        target_B : np.array([[x], [y]]) or None - target position for scout B
+        updated_last_ms_position : np.array([[x], [y]]) - MS position for next iteration
     """
     if t % 2.0 <= 1.9:  # Output None during the first 1.9 seconds of each 2s period
         return None, None, last_ms_position
     
-    # extract position of Mothership
-    ms_x, ms_y = mothership_state[0], mothership_state[1]
+    # extract position of Mothership as column vector
+    ms_pos = np.array([[mothership_state[0]], [mothership_state[1]]])
 
-    # estimate heading of Motherboat
-    prev_x, prev_y = last_ms_position[0], last_ms_position[1]
-    dx = ms_x - prev_x
-    dy = ms_y - prev_y
-    norm = math.hypot(dx, dy)
-    if norm == 0:
-        dir_x, dir_y = 1.0, 0.0  # Default direction if no movement
+    # estimate heading of Motherboat from movement
+    dx_vec = ms_pos - last_ms_position
+    norm = np.linalg.norm(dx_vec)
+    
+    if norm < 1e-6:
+        # Default direction if no movement
+        dir_vec = np.array([[1.0], [0.0]])
     else:
-        dir_x, dir_y = dx / norm, dy / norm
+        dir_vec = dx_vec / norm
 
     # Place midpoint at the desired distance from mothership
-    target_mid_x = ms_x + dir_x * distance
-    target_mid_y = ms_y + dir_y * distance
+    target_mid = ms_pos + dir_vec * distance
 
-    # Vector perpendicular to direction
-    perp_x = -dir_y
-    perp_y = dir_x
+    # Vector perpendicular to direction (rotate 90° left)
+    perp_vec = np.array([[-dir_vec[1, 0]], [dir_vec[0, 0]]])
 
     # Compute target positions for A and B symmetrically
-    target_A = [
-        target_mid_x + perp_x * (distance / 2),
-        target_mid_y + perp_y * (distance / 2)
-    ]
-    target_B = [
-        target_mid_x - perp_x * (distance / 2),
-        target_mid_y - perp_y * (distance / 2)
-    ]
-    last_ms_position = (ms_x, ms_y)
+    target_A = target_mid + perp_vec * (distance / 2)
+    target_B = target_mid - perp_vec * (distance / 2)
+    
+    # Update last position
+    updated_last_ms_position = ms_pos.copy()
 
-    return target_A, target_B, last_ms_position
+    return target_A, target_B, updated_last_ms_position
 
 
 
-def compute_target_points_4(mothership_state, scout_A_state, scout_B_state, last_ms_position, distance=6.0):
+def compute_target_points_4(mothership_state, scout_A_state, scout_B_state, estimation_A, estimation_B, distance=6.0):
     """
     Computes the target position for the scouts based on the distance to the other scout
     and the Mothership.
 
     The scouts are positioned to keep a constant distance to the other boats.
+
+    Parameters:
+    -----------
+    mothership_state : list or tuple
+        [x, y, theta, vx, vy, omega] - mothership state
+    scout_A_state : list or tuple
+        [x, y, theta, vx, vy, omega] - scout A state
+    scout_B_state : list or tuple
+        [x, y, theta, vx, vy, omega] - scout B state
+    estimation_A : list or tuple
+        [A_estimated_MS, A_estimated_B] - estimated positions of MS and B from scout A in the global frame
+    estimation_B : list or tuple
+        [B_estimated_MS, B_estimated_A] - estimated positions of MS and A from scout B in the global frame
+    distance : float
+        Desired distance between boats and from mothership (meters). Default is 6.0.
     """
     # extract all positions
     pos_ms = np.array([[mothership_state[0]], [mothership_state[1]]])
@@ -204,7 +206,23 @@ def compute_target_points_4(mothership_state, scout_A_state, scout_B_state, last
     dist_ms_b = np.norm(pos_ms - pos_b)
     dist_a_b = np.norm(pos_a - pos_b)
 
+    # Scout A
+    # estimation des positions des bateaux
+    if estimation_A is not None:
+        # ancienne estimation
+        A_estimated_MS = estimation_A[0]
+        A_estimated_B = estimation_A[1]
+        # nouvelle estimation à partir des distances
+        A_estimated_MS = 0.8 * A_estimated_MS + 0.2 * dist_ms_a
+        A_estimated_B = 0.8 * A_estimated_B + 0.2 * dist_a_b
+
+
+    # Scout B
+
+
+
+
     
     target_A, target_B = None, None
-    
+
     return target_A, target_B

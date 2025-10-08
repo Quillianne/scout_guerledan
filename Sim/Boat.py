@@ -1,9 +1,13 @@
-"""Boat model for the simulation.
+"""Boat model for the simulation using numpy column vectors.
 
-Provides a Boat class encapsulating state ([x,y,theta,vx,vy,omega]) and
-physical parameters like mass, inertia, drag coefficients, motor spacing,
-max thrust and max speed. The `step` method integrates dynamics for a
-single timestep given left/right motor thrusts.
+This version stores position and velocity as 2x1 numpy column arrays:
+  - self.pos is shape (2,1) containing [x, y]^T
+  - self.vel is shape (2,1) containing [vx, vy]^T
+
+Theta and angular velocity remain scalars. The class exposes both
+numpy-based getters (get_*_np) and backward-compatible tuple/list
+getters (get_*, get_state) so existing code keeps working while new
+code can use the column-array API.
 """
 from math import cos, sin, hypot
 import numpy as np
@@ -18,12 +22,10 @@ class Boat:
                  angular_drag=4.0,
                  max_thrust=15.0,
                  max_speed=10.0):
-        # state: x, y, theta, vx, vy, omega
-        self.x = float(x)
-        self.y = float(y)
+        # state stored as numpy column arrays for position and velocity
+        self.pos = np.array([[float(x)], [float(y)]])  # shape (2,1)
         self.theta = float(theta)
-        self.vx = 0.0
-        self.vy = 0.0
+        self.vel = np.array([[0.0], [0.0]])            # shape (2,1)
         self.omega = 0.0
 
         # physical properties
@@ -40,63 +42,93 @@ class Boat:
         self.max_thrust = float(max_thrust)
         self.max_speed = float(max_speed)
 
+    # ----------------------- numpy getters -----------------------
+    def get_position_np(self):
+        """Return position as a 2x1 numpy column array [[x],[y]]."""
+        return self.pos.copy()
+
+    def get_velocity_np(self):
+        """Return velocity as a 2x1 numpy column array [[vx],[vy]]."""
+        return self.vel.copy()
+
+    def get_state_np(self):
+        """Return full state as a 6x1 numpy column array:
+        [x, y, theta, vx, vy, omega]^T
+        """
+        return np.vstack((self.pos, np.array([[self.theta]]), self.vel, np.array([[self.omega]])))
+
+    # -------------------- backward compatible API -----------------
     def get_state(self):
-        return [self.x, self.y, self.theta, self.vx, self.vy, self.omega]
+        """Backward-compatible: return a Python list [x,y,theta,vx,vy,omega]."""
+        return [float(self.pos[0, 0]), float(self.pos[1, 0]), float(self.theta),
+                float(self.vel[0, 0]), float(self.vel[1, 0]), float(self.omega)]
 
     def set_state(self, state):
-        self.x, self.y, self.theta, self.vx, self.vy, self.omega = map(float, state)
+        """Accept sequence [x,y,theta,vx,vy,omega] (like before) to set state."""
+        x, y, theta, vx, vy, omega = map(float, state)
+        self.pos = np.array([[x], [y]])
+        self.theta = float(theta)
+        self.vel = np.array([[vx], [vy]])
+        self.omega = float(omega)
 
     def get_position(self):
-        return self.x, self.y, self.theta
+        """Backward-compatible: return (x, y, theta)."""
+        return float(self.pos[0, 0]), float(self.pos[1, 0]), float(self.theta)
 
     def get_velocity(self):
-        return self.vx, self.vy, self.omega
+        """Backward-compatible: return (vx, vy, omega)."""
+        return float(self.vel[0, 0]), float(self.vel[1, 0]), float(self.omega)
 
+    # ----------------------- dynamics step -----------------------
     def step(self, thrust_l, thrust_r, dt):
         """Integrate dynamics over one timestep.
 
         thrust_l, thrust_r: commanded thrust (N). They are clamped to +/- max_thrust.
         dt: timestep in seconds.
+
+        The method accepts numeric values or numpy scalars/0-d arrays for thrusts.
+        It updates the internal numpy state and returns the backward-compatible
+        Python list state (for existing code). New code can call `get_state_np()`.
         """
-        # clamp thrusts
-        t_l = max(-self.max_thrust, min(self.max_thrust, float(thrust_l)))
-        t_r = max(-self.max_thrust, min(self.max_thrust, float(thrust_r)))
+        # clamp thrusts and coerce to float
+        t_l = float(np.clip(float(thrust_l), -self.max_thrust, self.max_thrust))
+        t_r = float(np.clip(float(thrust_r), -self.max_thrust, self.max_thrust))
 
         # total forward force (body frame) and torque
         F_forward = t_l + t_r
         torque = (t_r - t_l) * self.motor_half_distance
 
-        # body-frame velocities
+        # rotation matrices (world <-> body)
         c = cos(self.theta)
         s = sin(self.theta)
-        v_world = np.array([self.vx, self.vy])
-        R_T = np.array([[c, s], [-s, c]])
-        v_body = R_T.dot(v_world)
+        R_T = np.array([[c, s], [-s, c]])     # world -> body
+        R = np.array([[c, -s], [s, c]])       # body -> world
+
+        # body-frame velocities (2x1)
+        v_body = R_T.dot(self.vel)
 
         # accelerations in body frame (simple linear drag model)
-        ax_b = (F_forward - self.linear_drag_long * v_body[0]) / self.mass
-        ay_b = (- self.linear_drag_lat * v_body[1]) / self.mass
+        ax_b = (F_forward - self.linear_drag_long * float(v_body[0, 0])) / self.mass
+        ay_b = (- self.linear_drag_lat * float(v_body[1, 0])) / self.mass
         alpha = (torque - self.angular_drag * self.omega) / self.inertia
 
-        # back to world frame
-        R = np.array([[c, -s], [s, c]])
-        a_world = R.dot(np.array([ax_b, ay_b]))
+        # world-frame acceleration (2x1)
+        a_world = R.dot(np.array([[ax_b], [ay_b]]))
 
-        # integrate
-        self.vx += a_world[0] * dt
-        self.vy += a_world[1] * dt
+        # integrate velocities and positions (column arrays)
+        self.vel = self.vel + a_world * float(dt)
 
         # enforce speed limit
-        sp = hypot(self.vx, self.vy)
+        sp = hypot(float(self.vel[0, 0]), float(self.vel[1, 0]))
         if sp > self.max_speed:
-            scale = self.max_speed / sp
-            self.vx *= scale
-            self.vy *= scale
+            scale = float(self.max_speed) / sp
+            self.vel = self.vel * scale
 
-        self.x += self.vx * dt
-        self.y += self.vy * dt
+        self.pos = self.pos + self.vel * float(dt)
 
-        self.omega += alpha * dt
-        self.theta += self.omega * dt
+        # angular dynamics
+        self.omega = float(self.omega + alpha * float(dt))
+        self.theta = float(self.theta + self.omega * float(dt))
 
+        # return backward-compatible state list
         return self.get_state()

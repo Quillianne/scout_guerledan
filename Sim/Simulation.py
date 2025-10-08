@@ -65,19 +65,42 @@ def display(boats, goals, mothership=None):
         if per_boat:
             for i, g_list in enumerate(goals):
                 if g_list:
-                    gx = [g[0] for g in g_list if g is not None]
-                    gy = [g[1] for g in g_list if g is not None]
+                    gx = []
+                    gy = []
+                    for g in g_list:
+                        if g is None:
+                            continue
+                        # accept either tuple/list (x,y) or 2x1 numpy column array
+                        if hasattr(g, 'shape') and np.asarray(g).size >= 2:
+                            # handle column vector [[x],[y]] or 1-D arrays
+                            arr = np.asarray(g).reshape(-1)
+                            gx.append(float(arr[0]))
+                            gy.append(float(arr[1]))
+                        else:
+                            gx.append(float(g[0]))
+                            gy.append(float(g[1]))
                     if gx and gy:
                         ax.plot(gx, gy, marker='x', color=colors[i % len(colors)], linestyle='None', markersize=12, markeredgewidth=2)
         else:
-            gx = [g[0] for g in goals if g is not None]
-            gy = [g[1] for g in goals if g is not None]
+            gx = []
+            gy = []
+            for g in goals:
+                if g is None:
+                    continue
+                arr = np.asarray(g).reshape(-1)
+                gx.append(float(arr[0]))
+                gy.append(float(arr[1]))
             if gx and gy:
                 ax.plot(gx, gy, 'rx', markersize=10, label='goals')
 
     # draw mothership if provided
     if mothership:
-        mx, my, mtheta = mothership.get_position()
+        # mothership position may be available as numpy column vector
+        try:
+            mpos = mothership.get_position_np()
+            mx = float(mpos[0, 0]); my = float(mpos[1, 0]); mtheta = float(mothership.theta)
+        except Exception:
+            mx, my, mtheta = mothership.get_position()
         boat_length = 1.2  # larger for mothership
         boat_width = 0.7
         pts_body = np.array([
@@ -98,7 +121,12 @@ def display(boats, goals, mothership=None):
 
     # draw all scout boats
     for i, boat in enumerate(boats):
-        bx, by, btheta = boat.get_position()
+        # accept numpy column position or backward-compatible tuple
+        try:
+            bpos = boat.get_position_np()
+            bx = float(bpos[0, 0]); by = float(bpos[1, 0]); btheta = float(boat.theta)
+        except Exception:
+            bx, by, btheta = boat.get_position()
         boat_length = 0.8
         boat_width = 0.5
         pts_body = np.array([
@@ -122,13 +150,13 @@ def display(boats, goals, mothership=None):
             display.histories = [[] for _ in boats]
 
         # ensure histories list is long enough
-        while len(display.histories) < len(boats):
-            display.histories.append([])
+            while len(display.histories) < len(boats):
+                display.histories.append([])
 
-        display.histories[i].append((bx, by))
-        hx = [p[0] for p in display.histories[i]]
-        hy = [p[1] for p in display.histories[i]]
-        ax.plot(hx, hy, color=colors[i % len(colors)], linewidth=1, alpha=0.6)
+            display.histories[i].append((bx, by))
+            hx = [p[0] for p in display.histories[i]]
+            hy = [p[1] for p in display.histories[i]]
+            ax.plot(hx, hy, color=colors[i % len(colors)], linewidth=1, alpha=0.6)
 
     # viewport centered around mothership/first boat position (zoomed out)
     margin = 15.0
@@ -150,7 +178,7 @@ def simulate(mode:int=1):
     """
     # Create mothership (slower than scouts)
     mothership = Boat(x=0.0, y=0.0, theta=0.0, max_speed=5.0, max_thrust=10.0, angular_drag=5.0)
-    last_ms_position = (0, 0)  # Initialize last mothership position
+    last_ms_position = np.array([[0.0], [0.0]])  # Initialize last mothership position as column vector
     
     # Create two scout boats (A and B) - starting behind mothership
     boat_A = Boat(x=4.0, y=2.0, theta=0.1)  # Scout A (left) - default max_speed=10.0
@@ -160,14 +188,15 @@ def simulate(mode:int=1):
     scout_targets = [None, None]  # Initialize scout targets
     
     # Mothership waypoints (simple path)
+    # waypoints as 2x1 column numpy arrays
     mothership_waypoints = [
-        [15.0, 0.0],
-        [30.0, 10.0],
-        [40.0, 10.0],
-        [40.0, 0.0],
-        [30.0, -10.0],
-        [20.0, -1.0],
-        [10.0, 0.0]
+        np.array([[15.0], [0.0]]),
+        np.array([[30.0], [10.0]]),
+        np.array([[40.0], [10.0]]),
+        np.array([[40.0], [0.0]]),
+        np.array([[30.0], [-10.0]]),
+        np.array([[20.0], [-1.0]]),
+        np.array([[10.0], [0.0]])
     ]
     current_waypoint_idx = 0
     
@@ -183,14 +212,16 @@ def simulate(mode:int=1):
         while step < max_steps and current_waypoint_idx < len(mothership_waypoints):
             # Get current mothership waypoint
             target_waypoint = mothership_waypoints[current_waypoint_idx]
-            
+
             # Simple proportional controller for mothership (direct waypoint following)
-            ms_state = mothership.get_state()
-            ms_x, ms_y, ms_theta = mothership.get_position()
-            
-            # Calculate mothership control
-            dx = target_waypoint[0] - ms_x
-            dy = target_waypoint[1] - ms_y
+            # use numpy column vectors for positions
+            ms_state_np = mothership.get_state_np()
+            ms_pos = ms_state_np[0:2].reshape((2, 1))
+            ms_x = float(ms_pos[0, 0]); ms_y = float(ms_pos[1, 0]); ms_theta = float(ms_state_np[2, 0])
+
+            # Calculate mothership control using numpy waypoint
+            dx = float(target_waypoint[0, 0]) - ms_x
+            dy = float(target_waypoint[1, 0]) - ms_y
             desired_theta = math.atan2(dy, dx)
             
             # Angle error
@@ -220,26 +251,26 @@ def simulate(mode:int=1):
                 if current_waypoint_idx < len(mothership_waypoints):
                     print(f"Mothership reached waypoint {current_waypoint_idx}")
             
-            # Compute formation target points for scouts
+            # Compute formation target points for scouts (pass numpy state)
             if mode == 1:
                 target_A, target_B = compute_target_points(
-                mothership.get_state(),
-                distance=triangle_side_length,
+                    mothership.get_state_np(),
+                    distance=triangle_side_length,
                 )
             elif mode == 2:
                 target_A, target_B, last_ms_position = compute_target_points_2(
-                mothership.get_state(),
-                last_ms_position=last_ms_position,
-                distance=triangle_side_length,
+                    mothership.get_state_np(),
+                    last_ms_position=last_ms_position,
+                    distance=triangle_side_length,
                 )
             elif mode == 3:
                 t = time.time() - t0
                 target_A, target_B, last_ms_position = compute_target_points_3(
-                    mothership.get_state(),
+                    mothership.get_state_np(),
                     last_ms_position=last_ms_position,
                     t=t,
                     distance=triangle_side_length,
-                    )
+                )
             else:
                 print("Not valid mode selected. Please enter a valid mode")
             
@@ -252,12 +283,17 @@ def simulate(mode:int=1):
             # Update each scout boat using controller to reach formation targets
             for i, scout in enumerate(scouts):
                 target = scout_targets[i]
-                state = scout.get_state()
-                thrust_l, thrust_r = controller(state, target)
-                scout.step(thrust_l, thrust_r, DT)
+                # pass numpy column state to controller (it flattens internally)
+                state_np = scout.get_state_np()
+                thrusts = controller(state_np, target)  # controller returns 1-D array
+                # represent thrusters as 2x1 column vector internally
+                thrusts_col = np.asarray(thrusts).reshape((2, 1))
+                # call Boat.step with scalar thrusts (backward-compatible)
+                scout.step(float(thrusts_col[0, 0]), float(thrusts_col[1, 0]), DT)
             
             # Display mothership and scouts
             # Pass scout targets as per-boat goals: [[target_A], [target_B]]
+            # keep goals as per-boat lists of column vectors (or None)
             goals_for_display = [[target_A], [target_B]]
             display(scouts, goals_for_display, mothership=mothership)
             
