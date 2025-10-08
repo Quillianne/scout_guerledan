@@ -334,9 +334,9 @@ class Navigation:
             correction = self.Kp * error
 
             base_speed = self.max_speed * 0.5
-            left_motor = base_speed - correction
-            right_motor = base_speed + correction
-
+            left_motor = base_speed + correction
+            right_motor = base_speed - correction
+            #print(left_motor,right_motor)
             left_motor = np.clip(left_motor, -self.max_speed, self.max_speed)
             right_motor = np.clip(right_motor, -self.max_speed, self.max_speed)
 
@@ -383,8 +383,8 @@ class Navigation:
                 distance_correction = math.tanh(distance / reference_distance)
 
                 base_speed = self.max_speed * 0.9
-                left_motor = distance_correction * base_speed + correction
-                right_motor = distance_correction * base_speed - correction
+                left_motor = distance_correction * base_speed - correction
+                right_motor = distance_correction * base_speed + correction
 
                 left_motor = np.clip(left_motor, -self.max_speed, self.max_speed)
                 right_motor = np.clip(right_motor, -self.max_speed, self.max_speed)
@@ -398,7 +398,7 @@ class Navigation:
         np.savez("log/trajectory.npz", history=self.history)
         self.history = []
 
-    def follow_gps(self, target_coords, cartesian=True, distance=5.0):
+    def go_to_gps(self, target_coords, cartesian=True, distance=5.0):
         """
         Aller vers une position (cartésienne ou GPS) et s'arrêter à 'distance' mètres.
         """
@@ -429,8 +429,8 @@ class Navigation:
                 distance_correction = math.tanh(distance_target / reference_distance)
 
                 base_speed = self.max_speed * 0.9
-                left_motor = distance_correction * base_speed + correction
-                right_motor = distance_correction * base_speed - correction
+                left_motor = distance_correction * base_speed - correction
+                right_motor = distance_correction * base_speed + correction
 
                 left_motor = np.clip(left_motor, -self.max_speed, self.max_speed)
                 right_motor = np.clip(right_motor, -self.max_speed, self.max_speed)
@@ -443,8 +443,8 @@ class Navigation:
 
     def return_home(self):
         # Exemples de points GPS (à adapter)
-        self.follow_gps((48.1990856, -3.0155828), cartesian=False, distance=6)
-        self.follow_gps((48.19904833333333, -3.0148149999999996), cartesian=False, distance=6.5)
+        self.go_to_gps((48.1990856, -3.0155828), cartesian=False, distance=6)
+        self.go_to_gps((48.1990483, -3.014815), cartesian=False, distance=6.5)
 
     def stay_at(self, point, cartesien=False):
         """
@@ -457,7 +457,7 @@ class Navigation:
             current_position = np.array(self.gps.get_coords(), dtype=object)
             if current_position[0] is not None and current_position[1] is not None:
                 if np.linalg.norm(current_position.astype(float) - np.array(point, dtype=float)) > 5.0:
-                    self.follow_gps(point, cartesian=True)
+                    self.go_to_gps(point, cartesian=True)
             time.sleep(0.1)
 
 
