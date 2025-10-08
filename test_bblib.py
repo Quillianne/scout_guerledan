@@ -2,19 +2,13 @@
 # Test runner for utils/bblib.py
 import argparse, time, sys, math
 
+from utils.settings import KP, DT, MAX_CMD, BASE_SPEED_MULTIPLIER
+
 from utils.bblib import (
     MavlinkLink, IMU, GPS,
-    MotorDriver, Navigation
+    MotorDriver, Navigation, init_blueboat
 )
 
-def build_stack(host, port, sysid, compid, max_cmd=250, dt=None, speed_multiplier=1.0):
-    mav = MavlinkLink(host=host, port=port, sysid=sysid, compid=compid)
-    imu = IMU(mav, dt=dt if dt is not None else 0.1)
-    gps = GPS(mav, debug=False)
-    motors = MotorDriver(mav, max_cmd=max_cmd)
-    nav_max_speed = max_cmd * max(0.0, min(1.0, speed_multiplier))  # Clamp between 0 and 1
-    nav = Navigation(imu, gps, motors, Kp=1.0, max_speed=nav_max_speed)
-    return mav, imu, gps, motors, nav
 
 def cmd_imu(imu):
     r,p,y = imu.get_euler_angles()
@@ -54,15 +48,21 @@ def cmd_head(mav, nav, heading, secs):
     print("Neutral:", nav.motor_driver.stop_motors())
     print("Disarming…"); print(mav.arm_disarm(False))
 
+def cmd_gotohome(mav, nav):
+    print("Arming…"); print(mav.arm_disarm(True))
+    print(f"Returning Home…")
+    nav.return_home()
+
 def main():
     ap = argparse.ArgumentParser(description="Tester utils/bblib.py (BlueOS mavlink2rest)")
     ap.add_argument("--host", default="192.168.2.202")
     ap.add_argument("--port", type=int, default=6040)
     ap.add_argument("--sysid", type=int, default=2)
     ap.add_argument("--compid", type=int, default=1)
-    ap.add_argument("--maxcmd", type=float, default=250.0)
-    ap.add_argument("--dt", type=float, default=None, help="pas de boucle pour Navigation/IMU (s)")
-    ap.add_argument("--speed", type=float, default=1.0, help="multiplicateur de vitesse pour Navigation (0.0-1.0)")
+    ap.add_argument("--maxcmd", type=float, default=MAX_CMD)
+    ap.add_argument("--dt", type=float, default=DT, help="pas de boucle pour Navigation/IMU (s)")
+    ap.add_argument("--speed", type=float, default=BASE_SPEED_MULTIPLIER, help="multiplicateur de vitesse pour Navigation (0.0-1.0)")
+    ap.add_argument("--kp", type=float, default=KP, help="gain Kp pour navigation")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("imu")
@@ -83,8 +83,10 @@ def main():
     p_head.add_argument("--heading", type=float, required=True, help="degrés [0..360)")
     p_head.add_argument("--secs", type=float, default=5.0)
 
+    p_home = sub.add_parser("home")
+
     args = ap.parse_args()
-    mav, imu, gps, motors, nav = build_stack(args.host, args.port, args.sysid, args.compid, args.maxcmd, args.dt, args.speed)
+    mav, imu, gps, motors, nav = init_blueboat(args.host, args.port, args.sysid, args.compid, args.maxcmd, args.dt, args.kp, args.speed)
 
     if args.cmd == "imu":
         cmd_imu(imu)
@@ -98,6 +100,8 @@ def main():
         cmd_drive(mav, motors, args.left, args.right, args.secs, args.rate)
     elif args.cmd == "head":
         cmd_head(mav, nav, args.heading, args.secs)
+    elif args.cmd == "home":
+        cmd_gotohome(mav, nav)
 
 if __name__ == "__main__":
     # ATTENTION: les commandes 'drive' et 'head' font bouger le bateau.
