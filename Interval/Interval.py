@@ -1,5 +1,8 @@
 import math
 
+# Sauvegarder les fonctions builtin de Python
+_builtin_min = min
+_builtin_max = max
 
 
 class Interval:
@@ -75,8 +78,6 @@ class Interval:
         # strict overlap: touching at boundaries does not count
         return (self.lb < other.ub) and (other.lb < self.ub)
 
-
-
     def __add__(self, other):
         if isinstance(other, Interval):
             return Interval(self.lb + other.lb, self.ub + other.ub)
@@ -84,12 +85,22 @@ class Interval:
             v = float(other)
             return Interval(self.lb + v, self.ub + v)
 
+    def __radd__(self, other):
+        return self.__add__(other)
+
     def __sub__(self, other):
         if isinstance(other, Interval):
             return Interval(self.lb - other.ub, self.ub - other.lb)
         else:
             v = float(other)
             return Interval(self.lb - v, self.ub - v)
+
+    def __rsub__(self, other):
+        if isinstance(other, Interval):
+            return other.__sub__(self)
+        else:
+            v = float(other)
+            return Interval(v - self.ub, v - self.lb)
 
     def __neg__(self):
         """Unary negation of an interval: -[lb,ub] == [-ub, -lb].
@@ -102,17 +113,24 @@ class Interval:
 
     def __mul__(self, other):
         if isinstance(other, Interval):
+            if self.is_empty() or other.is_empty():
+                return Interval.empty_set()
             products = [
                 self.lb * other.lb,
                 self.lb * other.ub,
                 self.ub * other.lb,
                 self.ub * other.ub
             ]
-            return Interval(min(products), max(products))
+            return Interval(_builtin_min(products), _builtin_max(products))
         else:
+            if self.is_empty():
+                return Interval.empty_set()
             v = float(other)
             products = [self.lb * v, self.ub * v]
-            return Interval(min(products), max(products))
+            return Interval(_builtin_min(products), _builtin_max(products))
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
 
     def __truediv__(self, other):
         if isinstance(other, Interval):
@@ -125,8 +143,10 @@ class Interval:
             v = float(other)
             if v == 0.0:
                 raise ZeroDivisionError("Interval division by zero")
+            if self.is_empty():
+                return Interval.empty_set()
             quotients = [self.lb / v, self.ub / v]
-            return Interval(min(quotients), max(quotients))
+            return Interval(_builtin_min(quotients), _builtin_max(quotients))
     
     def inverse(self):
         """Return the multiplicative inverse interval 1 / self.
@@ -167,8 +187,8 @@ class Interval:
             return NotImplemented
         if self.is_empty() or other.is_empty():
             return Interval.empty_set()
-        lb = max(self.lb, other.lb)
-        ub = min(self.ub, other.ub)
+        lb = _builtin_max(self.lb, other.lb)
+        ub = _builtin_min(self.ub, other.ub)
         if lb > ub:
             return Interval.empty_set()
         return Interval(lb, ub)
@@ -185,13 +205,12 @@ class Interval:
             return other
         if other.is_empty():
             return self
-        lb = min(self.lb, other.lb)
-        ub = max(self.ub, other.ub)
+        lb = _builtin_min(self.lb, other.lb)
+        ub = _builtin_max(self.ub, other.ub)
         return Interval(lb, ub)
 
     def sqr(self):
         raise AttributeError("sqr was removed; use pow (e.g. x**2) instead")
-
 
     def __pow__(self, exponent):
         """Raise interval elements to an integer power.
@@ -239,9 +258,21 @@ class Interval:
         b = self.ub ** n
         if self.lb <= 0.0 and self.ub >= 0.0:
             # spans zero -> minimum is 0
-            return Interval(0.0, max(a, b))
+            return Interval(0.0, _builtin_max(a, b))
         else:
-            return Interval(min(a, b), max(a, b))
+            return Interval(_builtin_min(a, b), _builtin_max(a, b))
+
+    def diameter(self):
+        """Return the diameter (width) of the interval."""
+        if self.is_empty():
+            return 0.0
+        return self.ub - self.lb
+
+    def midpoint(self):
+        """Return the midpoint of the interval."""
+        if self.is_empty():
+            return float('nan')
+        return (self.lb + self.ub) / 2.0
 
 
 def exp(x):
@@ -309,7 +340,7 @@ def log(x):
         return Interval(math.log(v), math.log(v))
 
 
-def min(x, y):
+def interval_min(x, y):
     """Return the interval min of x and y.
 
     Implements: Interval(min(x.lb, y.lb), min(x.ub, y.ub))
@@ -325,9 +356,9 @@ def min(x, y):
     if x.is_empty() or y.is_empty():
         return Interval.empty_set()
     
-    return Interval(min(x.lb, y.lb), min(x.ub, y.ub))
+    return Interval(_builtin_min(x.lb, y.lb), _builtin_min(x.ub, y.ub))
 
-def max(x, y):
+def interval_max(x, y):
     """Return the interval max of x and y.
 
     Implements: Interval(max(x.lb, y.lb), max(x.ub, y.ub))
@@ -343,5 +374,55 @@ def max(x, y):
     if x.is_empty() or y.is_empty():
         return Interval.empty_set()
     
-    return Interval(max(x.lb, y.lb), max(x.ub, y.ub))
+    return Interval(_builtin_max(x.lb, y.lb), _builtin_max(x.ub, y.ub))
+
+
+def cos_interval(theta_interval):
+    """Cosinus d'un intervalle d'angles avec gestion des discontinuités."""
+    if not isinstance(theta_interval, Interval) or theta_interval.is_empty():
+        return Interval.empty_set()
+        
+    # Normalisation de l'intervalle à [-2π, 2π]
+    width = theta_interval.ub - theta_interval.lb
     
+    # Si l'intervalle couvre plus d'une période complète
+    if width >= 2 * math.pi:
+        return Interval(-1.0, 1.0)
+    
+    # Calcul des valeurs aux bornes
+    cos_lb = math.cos(theta_interval.lb)
+    cos_ub = math.cos(theta_interval.ub)
+    
+    cos_min = _builtin_min(cos_lb, cos_ub)
+    cos_max = _builtin_max(cos_lb, cos_ub)
+    
+    # Vérification des extrema de cosinus dans l'intervalle
+    # cos atteint 1 en 0, ±2π, ±4π, ...
+    # cos atteint -1 en ±π, ±3π, ...
+    
+    # Cherche les multiples de π dans l'intervalle
+    k_min = math.ceil(theta_interval.lb / math.pi)
+    k_max = math.floor(theta_interval.ub / math.pi)
+    
+    for k in range(int(k_min), int(k_max) + 1):
+        angle = k * math.pi
+        if theta_interval.lb <= angle <= theta_interval.ub:
+            if k % 2 == 0:  # k pair: cos(kπ) = 1
+                cos_max = 1.0
+            else:  # k impair: cos(kπ) = -1
+                cos_min = -1.0
+                
+    return Interval(cos_min, cos_max)
+
+
+def sin_interval(theta_interval):
+    """Sinus d'un intervalle d'angles avec gestion des discontinuités."""
+    if not isinstance(theta_interval, Interval) or theta_interval.is_empty():
+        return Interval.empty_set()
+        
+    # Utilise la relation sin(x) = cos(x - π/2)
+    shifted_interval = Interval(
+        theta_interval.lb - math.pi/2,
+        theta_interval.ub - math.pi/2
+    )
+    return cos_interval(shifted_interval)

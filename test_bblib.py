@@ -33,6 +33,7 @@ def cmd_neutral(motors):
 
 def cmd_drive(mav, motors, left, right, secs, rate):
     # sécurité minimale
+    print("Setting manual mode…"); print(mav.set_mode_manual())
     print("Arming…"); print(mav.arm_disarm(True))
     print(f"Drive LR: left={left}, right={right}, secs={secs}, rate={rate} Hz")
     info = motors.drive_lr(left, right, seconds=secs, rate_hz=rate)
@@ -42,6 +43,7 @@ def cmd_drive(mav, motors, left, right, secs, rate):
           f"t={info['throttle_norm']:.2f}, s={info['steering_norm']:.2f}")
 
 def cmd_head(mav, nav, heading, secs):
+    print("Setting manual mode…"); print(mav.set_mode_manual())
     print("Arming…"); print(mav.arm_disarm(True))
     print(f"Follow heading {heading}° for {secs}s (max_speed={nav.max_speed:.1f})")
     nav.follow_heading(target_heading_deg=heading, duration_s=secs)
@@ -49,6 +51,7 @@ def cmd_head(mav, nav, heading, secs):
     print("Disarming…"); print(mav.arm_disarm(False))
 
 def cmd_gotohome(mav, nav):
+    print("Setting manual mode…"); print(mav.set_mode_manual())
     print("Arming…"); print(mav.arm_disarm(True))
     print(f"Returning Home…")
     nav.return_home()

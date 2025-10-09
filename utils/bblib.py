@@ -88,6 +88,15 @@ class MavlinkLink:
             "target_system": self.sysid, "target_component": self.compid, "confirmation": 0
         })
     
+    def set_mode_manual(self):
+        body = {
+            "type": "SET_MODE",
+            "target_system": self.sysid,
+            "base_mode": {"bits": 1},  # MAV_MODE_FLAG_CUSTOM_MODE_ENABLED
+            "custom_mode": 0           # Rover: MANUAL
+        }
+        return self.post_message(body)
+
     def get_battery_status(self):
         """
         Retourne un dict avec tension (V), courant (A) et pourcentage restant (%) si dispo.
