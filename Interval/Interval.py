@@ -426,10 +426,5 @@ def sin_interval(theta_interval):
         theta_interval.ub - math.pi/2
     )
     return cos_interval(shifted_interval)
-    return Interval(max(x.lb, y.lb), max(x.ub, y.ub))
 
 
-
-class Interval2D:
-    def __init__(self, *args):
-        if 
