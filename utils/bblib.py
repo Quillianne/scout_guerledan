@@ -455,6 +455,47 @@ class Navigation:
 
         self.motor_driver.send_cmd_motor(0, 0)
 
+    def go_to_position(self, target):
+        """
+        Commande 1 shot pour diriger le bateau vers une position cible (x,y).
+
+        Parameters:
+        target : np.array([[x], [y]]) - position cible en coordonnées cartésiennes
+        """
+
+        current_coords = np.array(self.gps.get_coords(), dtype=float).reshape(2, 1)
+        if current_coords[0,0] is None or current_coords[1,0] is None:
+            print("Position GPS non disponible.")
+            return
+
+        delta = target - current_coords.astype(float)
+        distance_target = float(np.linalg.norm(delta))
+        if distance_target < 2.0:
+            print("Déjà proche de la position cible.")
+            return
+
+        target_heading = (math.degrees(math.atan2(delta[1], delta[0])) + 360.0) % 360.0
+        current_heading = self.get_current_heading()
+        if current_heading is None:
+            print("Cap actuel non disponible.")
+            return
+
+        error = target_heading - current_heading
+        error = (error + 180) % 360 - 180
+        correction = self.Kp * error
+
+        reference_distance = 2.0
+        distance_correction = math.tanh(distance_target / reference_distance)
+
+        left_motor = distance_correction * self.base_speed + correction
+        right_motor = distance_correction * self.base_speed - correction
+
+        left_motor = np.clip(left_motor, -self.max_cmd, self.max_cmd)
+        right_motor = np.clip(right_motor, -self.max_cmd, self.max_cmd)
+
+        self.motor_driver.send_cmd_motor(left_motor, right_motor)
+        print(f"Commande envoyée: Vm={distance_correction*self.base_speed:6.2f}, D_Corr={distance_correction:4.2f}, Err={error:6.2f}, Dist={distance_target:6.2f}")
+
     def return_home(self):
         # Exemples de points GPS (à adapter)
         self.go_to_gps((48.1990856, -3.0155828), cartesian=False, distance=6)
