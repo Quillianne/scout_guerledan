@@ -68,6 +68,7 @@ def run(targets, hz: float, port: int, compid: int, timeout: float):
     signal.signal(signal.SIGINT, handle_sig)
     signal.signal(signal.SIGTERM, handle_sig)
 
+    count = 0
     while not stop:
         t0 = time.time()
         for link in links:
@@ -77,6 +78,15 @@ def run(targets, hz: float, port: int, compid: int, timeout: float):
                 print(f"[WARN] Échec envoi HEARTBEAT vers {link.base}: {e}")
         # maintenir la cadence
         dt = time.time() - t0
+
+        if count % 3 == 0:
+            print("[RUNNING] Heartbeat.                          ", end = "\r")
+        elif count % 3 == 1:
+            print("[RUNNING] Heartbeat..                         ", end = "\r")
+        elif count % 3 == 2:
+            print("[RUNNING] Heartbeat...                        ", end = "\r")
+        count +=1 
+
         time.sleep(max(0.0, period - dt))
 
     print("[OK] Heartbeat stoppé.")
