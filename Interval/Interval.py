@@ -344,4 +344,9 @@ def max(x, y):
         return Interval.empty_set()
     
     return Interval(max(x.lb, y.lb), max(x.ub, y.ub))
-    
+
+
+
+class Interval2D:
+    def __init__(self, *args):
+        if 
