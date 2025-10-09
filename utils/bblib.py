@@ -87,6 +87,64 @@ class MavlinkLink:
             "param2": 0, "param3": 0, "param4": 0, "param5": 0, "param6": 0, "param7": 0,
             "target_system": self.sysid, "target_component": self.compid, "confirmation": 0
         })
+    
+    def set_mode_manual(self):
+        body = {
+            "type": "SET_MODE",
+            "target_system": self.sysid,
+            "base_mode": {"bits": 1},  # MAV_MODE_FLAG_CUSTOM_MODE_ENABLED
+            "custom_mode": 0           # Rover: MANUAL
+        }
+        return self.post_message(body)
+
+    def get_battery_status(self):
+        """
+        Retourne un dict avec tension (V), courant (A) et pourcentage restant (%) si dispo.
+        - Essaie BATTERY_STATUS (cellules en mV, courant en cA = 0.01 A)
+        - Complète avec SYS_STATUS (voltage_battery en mV, current_battery en cA, battery_remaining en %)
+        """
+        info = {}
+
+        # 1) BATTERY_STATUS (prioritaire si présent)
+        j = self.get_message("BATTERY_STATUS")
+        if j and "message" in j:
+            m = j["message"]
+
+            # Tensions (mV) : 'voltages' est un tableau par cellule ; valeur 65535 = inconnue
+            voltages = m.get("voltages", [])
+            valid = [v for v in voltages if v is not None and v != 65535]
+            if valid:
+                pack_mV = sum(valid)  # si plusieurs cellules valides, somme ≈ tension pack
+                info["voltage_V"] = pack_mV / 1000.0
+                info["cells_V"] = [v / 1000.0 for v in valid]
+
+            # Courant (BATTERY_STATUS.current_battery) en cA (0.01 A) ; 32767 / -1 = inconnu
+            cur = m.get("current_battery", None)
+            if cur is not None and cur not in (-1, 32767):
+                info["current_A"] = cur / 100.0
+
+            # Pourcentage restant
+            rem = m.get("battery_remaining", None)
+            if rem is not None and rem != -1:
+                info["remaining_percent"] = rem
+
+        # 2) SYS_STATUS (fallback / compléments)
+        j2 = self.get_message("SYS_STATUS")
+        if j2 and "message" in j2:
+            m2 = j2["message"]
+            vb = m2.get("voltage_battery", None)  # mV
+            if vb is not None and vb != 0 and "voltage_V" not in info:
+                info["voltage_V"] = vb / 1000.0
+
+            cur2 = m2.get("current_battery", None)  # cA
+            if cur2 is not None and cur2 != -1 and "current_A" not in info:
+                info["current_A"] = cur2 / 100.0
+
+            rem2 = m2.get("battery_remaining", None)
+            if rem2 is not None and rem2 != -1 and "remaining_percent" not in info:
+                info["remaining_percent"] = rem2
+
+        return info if info else None
 
 
 # ---------------------------------------------------------------------------
