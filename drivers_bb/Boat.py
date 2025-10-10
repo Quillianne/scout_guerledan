@@ -11,23 +11,23 @@ def sawtooth(angle):
 class Boat:
     def __init__(self, ip_addr):
         self._num = int(ip_addr[-1])
-        self.bb = mavutil.mavlink_connection(ip_addr)
+        self._bb = mavutil.mavlink_connection(ip_addr)
         msg = None
         while not msg:
-            self.bb.mav.ping_send(
+            self._bb.mav.ping_send(
                 int(time.time() * 1e6),  # Unix time in microseconds
                 0,  # Ping number
                 0,  # Request ping of all systems
                 0  # Request ping of all components
             )
-            msg = self.bb.recv_match()
+            msg = self._bb.recv_match()
             time.sleep(0.5)
-        self.bb.mav.ping_send(0, 0, 0, 0)
-        self.bb.wait_heartbeat()
+        self._bb.mav.ping_send(0, 0, 0, 0)
+        self._bb.wait_heartbeat()
 
-        self._motors = Motors(self.bb)
-        self._gps = GPS(self.bb)
-        self._imu = IMU(self.bb)
+        self._motors = Motors(self._bb)
+        self._gps = GPS(self._bb)
+        self._imu = IMU(self._bb)
 
     def reach_point(self, point):
         A = self._gps.gps_2_cart(point)
@@ -51,12 +51,17 @@ class Boat:
         print("Target reached.")
 
     def formation_nav_GPS(self):
+        Kp = 100
+        Kd = 50
+        Ki = 50
         if self._num == 2:
             shift = np.array([[7, 3]]).T
         elif self._num == 3:
             shift = np.array([[7, -3]]).T
         else:
             return
+        list_err = []
+        list_timestamp = []
         Ms = None
         yaw_ms = None
         speed_ms = None
@@ -70,18 +75,29 @@ class Boat:
         steer = np.clip(100 * err_yaw, -400, 400)
         target_speed = speed_ms + np.tanh(np.linalg.norm(BS) / 5)
         err = self._gps.get_SOG() - target_speed
+        list_err.append(err)
+        list_timestamp.append(self.bb.recv_match(type='SYSTEM_TIME', blocking=True).to_dict()['time_boot_ms'])
+        if len(list_err) > 1:
+            err_der = (list_err[-1] - list_err[-2])/(list_timestamp[-1] - list_timestamp[-2])
+            err_int = np.sum([list_err[i-1] * (list_timestamp[i] - list_timestamp[i-1]) / 1000 for i in range(-1, -1, max(0, -100))])
+        else:
+            err_der = 0
+            err_int = 0
+        throtle = 200 + Kp * err + Kd * err_der + Ki * err_int
+        self._motors.send_com(throtle, steer)
+
 
     def __exit__(self, exc_type, exc_value, traceback):
         del (self._motors)
         del (self._gps)
         del (self._imu)
-        self.bb.close()
+        self._bb.close()
 
     def __del__(self):
         del(self._motors)
         del(self._gps)
         del(self._imu)
-        self.bb.close()
+        self._bb.close()
 
 if __name__ == "__main__":
     boat = Boat("udpin:0.0.0.0:14552")
