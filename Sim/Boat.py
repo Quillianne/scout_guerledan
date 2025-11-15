@@ -12,6 +12,8 @@ code can use the column-array API.
 from math import cos, sin, hypot
 import numpy as np
 
+from Interval_observer import Observer
+
 
 class Boat:
     def __init__(self,

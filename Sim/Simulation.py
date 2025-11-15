@@ -1,14 +1,17 @@
 import math
 import time
+import os
 try:
     import numpy as np
     import matplotlib.pyplot as plt
+    from matplotlib.animation import PillowWriter
 except Exception:
     # If plotting libraries are not available the file will still be syntactically valid
     np = None
     plt = None
+    PillowWriter = None
 
-from Controller import controller  # reuse the controller from Controller.py
+from Controller import controller  # use the controllers from Controller.py
 from Boat import Boat
 from Path_planner import compute_target_points, compute_target_points_2, compute_target_points_3
 
@@ -20,13 +23,14 @@ MAX_SPEED = 10.0  # m/s maximum allowed speed for the boat
 
 
 
-def display(boats, goals, mothership=None):
+def display(boats, goals, mothership=None, save_frame=False):
     """
     Displays the current state of boats, mothership, and goal points
 
     boats: list of Boat instances (scouts)
     goals: list of points or per-boat goal lists
     mothership: Boat instance representing the mothership (optional)
+    save_frame: if True, save the current frame for gif creation
     """
     if plt is None or np is None:
         # plotting libraries not available; do nothing
@@ -168,14 +172,74 @@ def display(boats, goals, mothership=None):
     ax.set_title('Boat simulation')
     ax.grid(True)
 
+    # Save frame if requested (for gif creation)
+    if save_frame:
+        if not hasattr(display, 'frames'):
+            display.frames = []
+        # Capture current figure as image array
+        display.fig.canvas.draw()
+        frame = np.frombuffer(display.fig.canvas.tostring_rgb(), dtype=np.uint8)
+        frame = frame.reshape(display.fig.canvas.get_width_height()[::-1] + (3,))
+        display.frames.append(frame)
+
     plt.pause(0.001)
     
 
 
-def simulate(mode:int=1):
+def save_gif(filename='simulation.gif', fps=20):
+    """
+    Save the captured frames as a GIF file.
+    
+    filename: name of the output gif file
+    fps: frames per second for the gif
+    """
+    if not hasattr(display, 'frames') or not display.frames:
+        print("No frames to save. Make sure save_frame=True was used during simulation.")
+        return
+    
+    if PillowWriter is None:
+        print("PillowWriter not available. Cannot save gif.")
+        return
+    
+    # Get the directory of the current file
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    filepath = os.path.join(script_dir, filename)
+    
+    print(f"Saving {len(display.frames)} frames to {filepath}...")
+    
+    # Create a figure for the animation
+    fig = plt.figure(figsize=(6, 6))
+    ax = fig.add_subplot(111)
+    
+    # Display first frame to set up the plot
+    im = ax.imshow(display.frames[0])
+    ax.axis('off')
+    
+    # Create animation writer
+    writer = PillowWriter(fps=fps)
+    
+    with writer.saving(fig, filepath, dpi=100):
+        for frame in display.frames:
+            im.set_data(frame)
+            writer.grab_frame()
+    
+    plt.close(fig)
+    print(f"GIF saved successfully to {filepath}")
+
+
+def simulate(mode:int=1, save_as_gif=False, gif_filename='simulation.gif', gif_fps=20):
     """
     Main simulation loop with mothership and two scout boats in formation
+    
+    mode: path planner mode (1, 2, or 3)
+    save_as_gif: if True, save the simulation as a gif file
+    gif_filename: name of the output gif file
+    gif_fps: frames per second for the gif
     """
+    # Reset frames if saving gif
+    if save_as_gif and hasattr(display, 'frames'):
+        display.frames = []
+    
     # Create mothership (slower than scouts)
     mothership = Boat(x=0.0, y=0.0, theta=0.0, max_speed=5.0, max_thrust=10.0, angular_drag=5.0)
     last_ms_position = np.array([[0.0], [0.0]])  # Initialize last mothership position as column vector
@@ -295,7 +359,7 @@ def simulate(mode:int=1):
             # Pass scout targets as per-boat goals: [[target_A], [target_B]]
             # keep goals as per-boat lists of column vectors (or None)
             goals_for_display = [[target_A], [target_B]]
-            display(scouts, goals_for_display, mothership=mothership)
+            display(scouts, goals_for_display, mothership=mothership, save_frame=save_as_gif)
             
             step += 1
             time.sleep(DT * 0.6)
@@ -305,10 +369,15 @@ def simulate(mode:int=1):
     
     print(f'Simulation finished at step {step}')
     print(f'Mothership reached {current_waypoint_idx}/{len(mothership_waypoints)} waypoints')
+    
+    # Save gif if requested
+    if save_as_gif:
+        save_gif(gif_filename, gif_fps)
 
 
 if __name__ == '__main__':
     # type of path planner (1, 2, or 3)
     mode = 3
-    simulate(mode)
+    
+    simulate(mode, save_as_gif=True, gif_filename='simulation'+str(mode)+ '.gif', gif_fps=20)
 
