@@ -12,8 +12,6 @@ code can use the column-array API.
 from math import cos, sin, hypot
 import numpy as np
 
-from Interval_observer import Observer
-
 
 class Boat:
     def __init__(self,
@@ -80,6 +78,47 @@ class Boat:
     def get_velocity(self):
         """Backward-compatible: return (vx, vy, omega)."""
         return float(self.vel[0, 0]), float(self.vel[1, 0]), float(self.omega)
+
+    # ----------------------- display method -----------------------
+    def display(self, ax, color='blue', alpha=0.8, boat_length=0.8, boat_width=0.5):
+        """Display the boat on the given matplotlib axes.
+        
+        Args:
+            ax: matplotlib axes object
+            color: color of the boat polygon
+            alpha: transparency of the boat (0-1)
+            boat_length: length of the boat in meters
+            boat_width: width of the boat in meters
+        """
+        import matplotlib.pyplot as plt
+        
+        # Get current position
+        bx = float(self.pos[0, 0])
+        by = float(self.pos[1, 0])
+        btheta = float(self.theta)
+        
+        # Define boat shape in body frame (triangle)
+        pts_body = np.array([
+            [boat_length/2, 0.0],
+            [-boat_length/2, -boat_width/2],
+            [-boat_length/2, boat_width/2],
+        ])
+        
+        # Rotation matrix
+        c = cos(btheta)
+        s = sin(btheta)
+        R = np.array([[c, -s], [s, c]])
+        
+        # Transform to world frame
+        pts_world = (R.dot(pts_body.T)).T + np.array([bx, by])
+        
+        # Draw boat polygon
+        poly = plt.Polygon(pts_world, color=color, alpha=alpha)
+        ax.add_patch(poly)
+        
+        # Draw heading arrow
+        ax.arrow(bx, by, 0.7 * cos(btheta), 0.7 * sin(btheta),
+                 head_width=0.08, head_length=0.12, fc='k', ec='k')
 
     # ----------------------- dynamics step -----------------------
     def step(self, thrust_l, thrust_r, dt):
