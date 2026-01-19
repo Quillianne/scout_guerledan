@@ -234,11 +234,11 @@ def simulate(mode:int=1, save_as_gif=False, gif_filename='simulation.gif', gif_f
     mothership_waypoints = [
         np.array([[15.0], [0.0]]),
         np.array([[30.0], [10.0]]),
-        np.array([[40.0], [10.0]]),
-        np.array([[40.0], [0.0]]),
-        np.array([[30.0], [-10.0]]),
-        np.array([[20.0], [-1.0]]),
-        np.array([[10.0], [0.0]])
+        # np.array([[40.0], [10.0]]),
+        # np.array([[40.0], [0.0]]),
+        # np.array([[30.0], [-10.0]]),
+        # np.array([[20.0], [-1.0]]),
+        # np.array([[10.0], [0.0]])
     ]
     current_waypoint_idx = 0
     
