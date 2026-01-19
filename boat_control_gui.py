@@ -681,7 +681,7 @@ class BoatControlGUI:
                 
                 # Déterminer la couleur selon le niveau
                 if percentage >= 60:
-                    color = "#27ae60"  # Vert
+                    color = "#27ae5f"  # Vert
                 elif percentage >= 30:
                     color = "#f39c12"  # Orange
                 else:
