@@ -28,6 +28,10 @@ def cmd_gps(gps):
 def cmd_arm(mav, state):
     print("Arm/Disarm:", mav.arm_disarm(bool(state)))
 
+def cmd_battery(mav):
+    battery_status = mav.get_battery_status()
+    print(f"Tension de la batterie: {battery_status['voltage_V']}V")
+
 def cmd_neutral(motors):
     print("Neutral:", motors.stop_motors())
 
@@ -70,6 +74,7 @@ def main():
 
     sub.add_parser("imu")
     sub.add_parser("gps")
+    sub.add_parser("battery")
 
     p_arm = sub.add_parser("arm")
     p_arm.add_argument("state", type=int, choices=[0,1], help="1=arm, 0=disarm")
@@ -86,7 +91,7 @@ def main():
     p_head.add_argument("--heading", type=float, required=True, help="degrés [0..360)")
     p_head.add_argument("--secs", type=float, default=5.0)
 
-    p_home = sub.add_parser("home")
+    sub.add_parser("home")
 
     args = ap.parse_args()
     mav, imu, gps, motors, nav = init_blueboat(args.host, args.port, args.sysid, args.compid, args.maxcmd, args.dt, args.kp, args.speed)
@@ -95,6 +100,8 @@ def main():
         cmd_imu(imu)
     elif args.cmd == "gps":
         cmd_gps(gps)
+    elif args.cmd == "battery":
+        cmd_battery(mav)
     elif args.cmd == "arm":
         cmd_arm(mav, args.state)
     elif args.cmd == "neutral":

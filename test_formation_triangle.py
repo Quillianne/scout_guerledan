@@ -17,19 +17,19 @@ def main():
     # ------------------------------------------------------------------
     # Initialisation des trois bateaux
     # ------------------------------------------------------------------
-    mav1, imu1, gps1, motors1, nav1 = init_blueboat(
-        host="192.168.1.1",
-        port=8888
-    )
+    # mav1, imu1, gps1, motors1, nav1 = init_blueboat(
+    #     host="192.168.1.1",
+    #     port=8888
+    # )
 
     mav2, imu2, gps2, motors2, nav2 = init_blueboat(
-        host="192.168.1.2",
-        port=8888
+        host="192.168.2.202", sysid=2,
+        port=6040
     )
 
     mav3, imu3, gps3, motors3, nav3 = init_blueboat(
-        host="192.168.1.3",
-        port=8888
+        host="192.168.2.203", sysid=3,
+        port=6040
     )
 
     # ------------------------------------------------------------------
@@ -59,15 +59,17 @@ def main():
             target_B : np.array([[x], [y]]) - target position for scout B (right front vertex)
         """
         # Extract mothership position and heading
-        ms_pos = np.array([[gps1.get_coords()[0]], [gps1.get_coords()[1]]])
-        ms_theta = math.radians(nav1.get_heading())
+        ms_pos = np.array([[gps2.get_coords()[0]], [gps2.get_coords()[1]]])
+        ms_theta = math.radians(nav2.get_current_heading())
+
+        #print(ms_pos)
 
         # For an equilateral triangle with mothership at rear vertex:
         # - Each scout is at distance = side_length from mothership
         # - Each scout is at ±30° from the heading direction
         # - This ensures all three sides have equal length
         
-        side = 8.0  # meters
+        side = 20.0  # meters
         
         # Angle offset for equilateral triangle: 30 degrees = pi/6 radians
         angle_offset = np.pi / 6.0
@@ -85,16 +87,22 @@ def main():
     # ------------------------------------------------------------------
     # Boucle principale de suivi des points cibles
     # ------------------------------------------------------------------
-    print("[Boat2] Démarrage du suivi GPS.")
+    print("[Boat1] Démarrage du suivi GPS.")
     print("[Boat3] Démarrage du suivi GPS.")
+    print("[Boat3] Armement.")
+    mav3.arm_disarm(True)
     start_time = time.time()
-    duration = 60.0  # secondes
+    duration = 100.0  # secondes
+
+    coordsA = []
+    coordsB = []
 
     while True:
         # Récupération des positions GPS (cartésiennes)
         tgt_coords_A, tgt_coords_B = compute_targets()
         cur_coords_A = gps2.get_coords()   # coordonnées du bateau 2
         cur_coords_B = gps3.get_coords()   # coordonnées du bateau 3
+
 
         if (
             tgt_coords_A[0] is None
@@ -110,10 +118,15 @@ def main():
             continue
 
         # Commande de suivi pour le bateau 2 (scout A)
-        nav2.go_to_position(tgt_coords_A)
+        #nav2.go_to_position(tgt_coords_A)
+
+        coordsA.append(cur_coords_A)
+        coordsB.append(cur_coords_B)
 
         # Commande de suivi pour le bateau 3 (scout B)
-        nav3.go_to_position(tgt_coords_B[0,0], tgt_coords_B[1,0])
+        nav3.go_to_position(tgt_coords_B)
+
+        #print(cur_coords_B, tgt_coords_B)
 
         if time.time() - start_time > duration:
             break
@@ -126,9 +139,12 @@ def main():
     print("[Boat2] Suivi GPS terminé, moteurs arrêtés, retour au ponton.")
     print("[Boat3] Suivi GPS terminé, moteurs arrêtés, retour au ponton.")
 
+
+    np.save("coordsA.npy", np.array(coordsA))
+    np.save("coordsB.npy", np.array(coordsB))
     # retour lobby
-    nav2.return_home()
-    nav3.return_home()
+    #nav2.return_home()
+    #nav3.return_home()
 
     # safety
     motors2.stop_motors()

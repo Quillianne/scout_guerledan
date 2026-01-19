@@ -97,6 +97,45 @@ class MavlinkLink:
         }
         return self.post_message(body)
 
+    def get_flight_mode(self):
+        """Récupère le mode de vol actuel du véhicule"""
+        j = self.get_message("HEARTBEAT")
+        if not j or "message" not in j:
+            return None
+        
+        msg = j["message"]
+        custom_mode = msg.get("custom_mode", None)
+        base_mode = msg.get("base_mode", {})
+        
+        if custom_mode is None:
+            return None
+            
+        # Modes ArduRover (custom_mode values)
+        rover_modes = {
+            0: "MANUAL",
+            1: "ACRO", 
+            3: "STEERING",
+            4: "HOLD",
+            5: "LOITER",
+            6: "FOLLOW",
+            7: "SIMPLE",
+            10: "AUTO",
+            11: "RTL",
+            12: "SMART_RTL",
+            15: "GUIDED"
+        }
+        
+        mode_name = rover_modes.get(custom_mode, f"UNKNOWN({custom_mode})")
+        
+        # Vérifier si armé
+        armed = bool(base_mode.get("bits", 0) & 128)  # MAV_MODE_FLAG_SAFETY_ARMED
+        
+        return {
+            "mode": mode_name,
+            "custom_mode": custom_mode,
+            "armed": armed
+        }
+
     def get_battery_status(self):
         """
         Retourne un dict avec tension (V), courant (A) et pourcentage restant (%) si dispo.
@@ -494,7 +533,7 @@ class Navigation:
         right_motor = np.clip(right_motor, -self.max_cmd, self.max_cmd)
 
         self.motor_driver.send_cmd_motor(left_motor, right_motor)
-        print(f"Commande envoyée: Vm={distance_correction*self.base_speed:6.2f}, D_Corr={distance_correction:4.2f}, Err={error:6.2f}, Dist={distance_target:6.2f}")
+        print(f"Commande envoyée: Vm={distance_correction*self.base_speed:6.2f}, D_Corr={distance_correction:4.2f}, Err={error:6.2f}, Dist={distance_target:6.2f}", end="\r")
 
     def return_home(self):
         # Exemples de points GPS (à adapter)
