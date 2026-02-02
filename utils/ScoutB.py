@@ -1,1 +1,0 @@
-# Same as scout A but with different parameters
