@@ -17,8 +17,8 @@ import math
 import time
 import matplotlib.pyplot as plt
 from codac import Interval, IntervalVector
-from prediction import equivalent_contractor
-from vibes_display import VibesDisplay
+from utils.prediction import equivalent_contractor
+from utils.vibes_display import VibesDisplay
 
 # ----------------------------------------------------------------------------
 # Parameters
