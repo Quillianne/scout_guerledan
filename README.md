@@ -22,7 +22,9 @@ Ce projet vise à développer un système de contrôle et de navigation pour une
   - `pymavlink==2.4.49` - Communication protocole MAVLink avec les bateaux
   - `requests==2.32.5` - Requêtes HTTP pour l'API REST
   - `matplotlib==3.10.7` - Visualisation et tracé de trajectoires
-  - `codac` - Bibliothèque pour les calculs par intervalles et méthodes ensemblistes
+  - `codac==2.0.0.dev23` - Bibliothèque pour les calculs par intervalles et méthodes ensemblistes
+
+- (optionnel) **VIBes-viewer** pour l'affichage des boîtes en simulation d'intervalles (via Codac)
 
 ### Installation
 
@@ -37,10 +39,11 @@ cd scout_guerledan
 pip install -r requirements.txt
 ```
 
-3. Installer Codac (pour les méthodes ensemblistes) :
+3. (Optionnel) Installer VIBes-viewer si vous souhaitez l'affichage des boîtes :
 ```bash
-# Suivre les instructions sur : https://codac.io/
+# Releases : https://github.com/ENSTABretagneRobotics/VIBES/releases
 ```
+La connexion au viewer se fait directement via Codac (pas de bibliothèque Python dédiée).
 
 ### Utilisation
 
@@ -54,72 +57,72 @@ L'interface permet de :
 - Visualiser position GPS, batterie, cap
 - Armer/désarmer les bateaux
 - Déclencher le retour maison
+- Modifier IP/port/sysid via “Modifier config”
+- Maintenir les heartbeats pendant l'exécution
 
-#### 2. Tests de formation en triangle
+Le heartbeat évite le désarmement de sécurité : auparavant, si on lançait un script puis qu'on le fermait et relançait plus tard, les bateaux restaient désarmés car ils ne recevaient plus d'info. Le maintien du heartbeat prévient ce cas.
+
+#### 2. Heartbeat (maintien de connexion)
+```bash
+python heartbeat.py --targets 192.168.2.201:1,192.168.2.202:2,192.168.2.203:3
+```
+
+#### 3. Tests de formation en triangle
 Tester la formation géométrique avec bateaux réels :
 ```bash
 python test_formation_triangle.py
 ```
 
-#### 3. Simulation
-Tester les algorithmes en simulation avant déploiement :
+#### 4. Simulation (ancienne, simpliste)
+Tester des algorithmes de base en simulation (historiquement utilisés la 1ʳᵉ semaine) :
 ```bash
 python Sim/Simulation.py
 ```
 
-#### 4. Simulation avec intervalles
-Tester l'estimation d'état par méthodes ensemblistes :
+#### 5. Simulation avec intervalles + VIBes-viewer
+Simulation de flotte + affichage VIBes-viewer (Codac) :
 ```bash
-cd Sim
-python interval_test.py
+python test_display.py
 ```
 
-### Configuration
-
-Modifier les adresses IP et paramètres dans les scripts de test ou dans `utils/settings.py` :
-```python
-MOTHERSHIP_IP = "192.168.1.1"
-SCOUT_A_IP = "192.168.2.202"
-SCOUT_B_IP = "192.168.2.203"
-PORT = 6040
+#### 6. Visualisation de trajectoires
+Analyse et GIF à partir des fichiers `testcoordsA.npy` / `testcoordsB.npy` :
+```bash
+python plot_trajectories_optimized.py
 ```
+
 
 ## Structure du projet
 
 ### Dossiers principaux
 
-#### `Interval/`
-Contient l'implémentation des méthodes d'estimation par intervalles utilisant la bibliothèque Codac.
-
-- **`scout_intervalle/`** : Package principal pour la gestion de flotte avec intervalles
-  - `controller.py` : Contrôleurs pour le pilotage des bateaux
-
 #### `Sim/`
-[Old] Premier simulateur de bateaux  pour tester les algorithmes de contrôles sans intervalles avant déploiement.
+**Ancien** : simulateur très simpliste utilisé la première semaine pour visualiser certains comportements.
 
 - `Boat.py` : Modèle cinématique de bateau
 - `Controller.py` : Contrôleurs (cap-vers-point, cap-constant, etc.)
 - `Path_planner.py` : Planification des points de passage pour formations
 - `Simulation.py` : Moteur de simulation avec visualisation matplotlib
+- `README.md` : Détails des algorithmes de planification (compute_target_points*)
 
-Premiers algorithmes par intervalles qui ne marchent pas:
-- `Simulation _intervals.py` : Simulation avec estimation par intervalles
-- `Interval_observer.py` : Observateur d'état par intervalles
+
 
 #### `utils/`
 Modules utilitaires pour la communication et la gestion des bateaux.
 
 - `bblib.py` : Bibliothèque principale pour communication MAVLink avec BlueBoat
 - `geo_conversion.py` : Conversions géographiques (WGS84 ↔ NED)
+- `interval.md` : Documentation des contracteurs équivalents / formules
 - `settings.py` : Configuration globale du projet
 - `prediction.py` : Algorithmes de prédiction et estimation de trajectoires
-- `vibes_display.py` : Affichage et visualisation avec VIBes
-- `test_display.py` : Tests pour les fonctions de visualisation
+- `vibes_display.py` : Affichage et visualisation avec VIBes-viewer
+
 
 ### Scripts principaux
 
 - `boat_control_gui.py` : Interface graphique de monitoring et contrôle des bateaux
 - `heartbeat.py` : Gestion des heartbeats MAVLink pour maintenir les connexions
+- `plot_trajectories_optimized.py` : Analyse et GIF des trajectoires à partir de `testcoordsA.npy` / `testcoordsB.npy`
 
 Scripts de test pour différentes fonctionnalités :
   - `test_bblib.py` : Tests de la bibliothèque MAVLink

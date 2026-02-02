@@ -26,7 +26,7 @@ class HeartbeatManager:
     """Gestionnaire de heartbeat pour maintenir les connexions"""
     
     def __init__(self, targets, hz=1.0, port=6040, compid=1, timeout=2.0):
-        self.targets = targets  # Liste de (ip, sysid)
+        self.targets = targets  # Liste de (ip, sysid) ou (ip, sysid, port)
         self.hz = hz
         self.port = port
         self.compid = compid
@@ -37,8 +37,13 @@ class HeartbeatManager:
         self.thread = None
         
         # Créer les liens MAVLink
-        for ip, sysid in targets:
-            link = MavlinkLink(host=ip, port=port, sysid=sysid, compid=compid, timeout=timeout)
+        for target in targets:
+            if len(target) == 3:
+                ip, sysid, tgt_port = target
+            else:
+                ip, sysid = target
+                tgt_port = port
+            link = MavlinkLink(host=ip, port=tgt_port, sysid=sysid, compid=compid, timeout=timeout)
             self.links.append(link)
     
     def build_heartbeat_message(self):
@@ -102,10 +107,11 @@ class HeartbeatManager:
 class BoatMonitor:
     """Classe pour surveiller un bateau individuel"""
     
-    def __init__(self, boat_id, host, sysid=None):
+    def __init__(self, boat_id, host, sysid=None, port=6040):
         self.boat_id = boat_id
         self.host = host
         self.sysid = sysid if sysid else boat_id
+        self.port = port
         
         # État de connexion
         self.connected = False
@@ -168,7 +174,7 @@ class BoatMonitor:
     def connect(self):
         """Tente de se connecter au bateau"""
         try:
-            self.mav = MavlinkLink(host=self.host, sysid=self.sysid, timeout=2.0)
+            self.mav = MavlinkLink(host=self.host, port=self.port, sysid=self.sysid, timeout=2.0)
             self.gps = GPS(self.mav)
             self.imu = IMU(self.mav)
             self.motors = MotorDriver(self.mav)
@@ -443,6 +449,7 @@ class BoatControlGUI:
         
         # Configuration des bateaux (à adapter selon votre réseau)
         self.boats = {
+            1: BoatMonitor(1, "192.168.2.201", 1),  # Bateau 1
             2: BoatMonitor(2, "192.168.2.202", 2),  # Bateau 2
             3: BoatMonitor(3, "192.168.2.203", 3)   # Bateau 3
         }
@@ -452,7 +459,7 @@ class BoatControlGUI:
         self.update_thread = None
         
         # Gestionnaire de heartbeat
-        targets = [(boat.host, boat.sysid) for boat in self.boats.values()]
+        targets = [(boat.host, boat.sysid, boat.port) for boat in self.boats.values()]
         self.heartbeat_manager = HeartbeatManager(targets, hz=1.0)
         
         self.setup_gui()
@@ -462,7 +469,7 @@ class BoatControlGUI:
     def start_heartbeat(self):
         """Démarre le heartbeat"""
         self.heartbeat_manager.start()
-        self.heartbeat_status.config(text="💓 Heartbeat: ON", fg="#27ae60")
+        self.heartbeat_status.config(text="Heartbeat: ON", fg="#27ae60")
         
     def setup_gui(self):
         """Configure l'interface graphique"""
@@ -472,7 +479,7 @@ class BoatControlGUI:
         title_frame.pack(fill="x", padx=5, pady=5)
         title_frame.pack_propagate(False)
         
-        title_label = tk.Label(title_frame, text="🛥️ Contrôle des Bateaux Scout", 
+        title_label = tk.Label(title_frame, text="Contrôle des Bateaux Scout", 
                               font=("Arial", 18, "bold"), fg="white", bg="#2c3e50")
         title_label.pack(expand=True)
         
@@ -488,25 +495,31 @@ class BoatControlGUI:
         control_frame = tk.Frame(self.root, bg="#f0f0f0")
         control_frame.pack(fill="x", padx=10, pady=5)
         
-        refresh_btn = tk.Button(control_frame, text="🔄 Actualiser", 
+        refresh_btn = tk.Button(control_frame, text="Actualiser", 
                                command=self.refresh_connections,
                                font=("Arial", 12), bg="#3498db", fg="black",
                                padx=20, pady=5)
         refresh_btn.pack(side="left", padx=5)
+
+        config_btn = tk.Button(control_frame, text="Modifier config",
+                      command=self.open_config_dialog,
+                      font=("Arial", 12), bg="#95a5a6", fg="black",
+                      padx=20, pady=5)
+        config_btn.pack(side="left", padx=5)
         
         # Bouton d'arrêt d'urgence
-        emergency_btn = tk.Button(control_frame, text="🚨 ARRÊT URGENCE", 
+        emergency_btn = tk.Button(control_frame, text="ARRÊT URGENCE", 
                                  command=self.emergency_stop,
                                  font=("Arial", 12, "bold"), bg="#c0392b", fg="black",
                                  padx=20, pady=5)
         emergency_btn.pack(side="left", padx=10)
         
         # Status heartbeat
-        self.heartbeat_status = tk.Label(control_frame, text="💓 Heartbeat: OFF", 
+        self.heartbeat_status = tk.Label(control_frame, text="Heartbeat: OFF", 
                                         font=("Arial", 10), fg="#e74c3c")
         self.heartbeat_status.pack(side="left", padx=10)
         
-        quit_btn = tk.Button(control_frame, text="❌ Quitter", 
+        quit_btn = tk.Button(control_frame, text="Quitter", 
                            command=self.quit_app,
                            font=("Arial", 12), bg="#e74c3c", fg="black",
                            padx=20, pady=5)
@@ -516,7 +529,7 @@ class BoatControlGUI:
         """Crée le panneau d'un bateau"""
         
         # Frame principal du bateau
-        boat_frame = tk.LabelFrame(parent, text=f"🛥️ Bateau {boat.boat_id}", 
+        boat_frame = tk.LabelFrame(parent, text=f"Bateau {boat.boat_id}", 
                                   font=("Arial", 14, "bold"), 
                                   bg="#ecf0f1", fg="#2c3e50", 
                                   relief="groove", bd=2)
@@ -533,7 +546,7 @@ class BoatControlGUI:
         boat.status_label.pack()
         
         # Informations GPS
-        gps_frame = tk.LabelFrame(boat_frame, text="📍 Position GPS", 
+        gps_frame = tk.LabelFrame(boat_frame, text="Position GPS", 
                                  font=("Arial", 10, "bold"), bg="#ecf0f1")
         gps_frame.pack(fill="x", padx=5, pady=5)
         
@@ -550,7 +563,7 @@ class BoatControlGUI:
         boat.alt_label.pack(anchor="w")
         
         # Informations batterie
-        battery_frame = tk.LabelFrame(boat_frame, text="🔋 Batterie", 
+        battery_frame = tk.LabelFrame(boat_frame, text="Batterie", 
                                      font=("Arial", 10, "bold"), bg="#ecf0f1")
         battery_frame.pack(fill="x", padx=5, pady=5)
         
@@ -563,7 +576,7 @@ class BoatControlGUI:
         boat.percentage_label.pack(anchor="w")
         
         # État du véhicule (mode et armement)
-        status_frame = tk.LabelFrame(boat_frame, text="🔧 État", 
+        status_frame = tk.LabelFrame(boat_frame, text="État", 
                                     font=("Arial", 10, "bold"), bg="#ecf0f1")
         status_frame.pack(fill="x", padx=5, pady=5)
         
@@ -576,7 +589,7 @@ class BoatControlGUI:
         boat.armed_label.pack(anchor="w")
         
         # Heading
-        heading_frame = tk.LabelFrame(boat_frame, text="🧭 Cap", 
+        heading_frame = tk.LabelFrame(boat_frame, text="Cap", 
                                      font=("Arial", 10, "bold"), bg="#ecf0f1")
         heading_frame.pack(fill="x", padx=5, pady=5)
         
@@ -588,22 +601,22 @@ class BoatControlGUI:
         controls_frame = tk.Frame(boat_frame, bg="#ecf0f1")
         controls_frame.pack(fill="x", padx=5, pady=10)
         
-        arm_btn = tk.Button(controls_frame, text="✅ Armer", 
+        arm_btn = tk.Button(controls_frame, text="Armer", 
                            command=lambda: self.arm_boat(boat.boat_id),
                            font=("Arial", 9), bg="#27ae60", fg="black", width=8)
         arm_btn.pack(side="left", padx=2)
         
-        disarm_btn = tk.Button(controls_frame, text="❌ Désarmer", 
+        disarm_btn = tk.Button(controls_frame, text="Désarmer", 
                               command=lambda: self.disarm_boat(boat.boat_id),
                               font=("Arial", 9), bg="#e67e22", fg="black", width=8)
         disarm_btn.pack(side="left", padx=2)
         
-        home_btn = tk.Button(controls_frame, text="🏠 Retour Maison", 
+        home_btn = tk.Button(controls_frame, text="Retour Maison", 
                              command=lambda: self.return_home_boat(boat.boat_id),
                              font=("Arial", 8), bg="#9b59b6", fg="black", width=12)
         home_btn.pack(side="left", padx=2)
         
-        stop_btn = tk.Button(controls_frame, text="⏹️ Stop Retour Maison", 
+        stop_btn = tk.Button(controls_frame, text="Stop Retour Maison", 
                            command=lambda: self.stop_boat(boat.boat_id),
                            font=("Arial", 9), bg="#e74c3c", fg="black", width=18)
         stop_btn.pack(side="left", padx=2)
@@ -716,7 +729,7 @@ class BoatControlGUI:
             
             # Status retour maison
             if boat.home_active:
-                boat.home_status_label.config(text="🏠 Retour maison...", fg="#f39c12")
+                boat.home_status_label.config(text="Retour maison...", fg="#f39c12")
             else:
                 boat.home_status_label.config(text="", fg="#2c3e50")
     
@@ -778,7 +791,7 @@ class BoatControlGUI:
     def emergency_stop(self):
         """Arrêt d'urgence de tous les bateaux"""
         confirm = messagebox.askyesno("ARRÊT D'URGENCE", 
-                                    "⚠️ Arrêter TOUS les bateaux immédiatement ?",
+                        "Arrêter TOUS les bateaux immédiatement ?",
                                     icon="warning")
         if confirm:
             for boat_id in self.boats.keys():
@@ -790,6 +803,121 @@ class BoatControlGUI:
         for boat in self.boats.values():
             boat.disconnect()
         messagebox.showinfo("Info", "Reconnexion en cours...")
+
+    def open_config_dialog(self):
+        """Ouvre une fenêtre pour modifier IP/port"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Modifier la configuration")
+        dialog.geometry("600x260")
+        dialog.resizable(False, False)
+
+        entries = {}
+        test_buttons = {}
+
+        header = tk.Label(dialog, text="Configuration des bateaux", font=("Arial", 12, "bold"))
+        header.grid(row=0, column=0, columnspan=3, pady=(10, 10))
+
+        tk.Label(dialog, text="Bateau").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        tk.Label(dialog, text="IP").grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        tk.Label(dialog, text="Port").grid(row=1, column=2, padx=5, pady=5, sticky="w")
+        tk.Label(dialog, text="SysID").grid(row=1, column=3, padx=5, pady=5, sticky="w")
+        tk.Label(dialog, text="Test").grid(row=1, column=4, padx=5, pady=5, sticky="w")
+
+        for i, boat_id in enumerate(sorted(self.boats.keys()), start=2):
+            boat = self.boats[boat_id]
+            tk.Label(dialog, text=f"{boat_id}").grid(row=i, column=0, padx=5, pady=5, sticky="w")
+
+            ip_var = tk.StringVar(value=boat.host)
+            port_var = tk.StringVar(value=str(boat.port))
+            sysid_var = tk.StringVar(value=str(boat.sysid))
+
+            ip_entry = tk.Entry(dialog, textvariable=ip_var, width=20)
+            port_entry = tk.Entry(dialog, textvariable=port_var, width=8)
+            sysid_entry = tk.Entry(dialog, textvariable=sysid_var, width=8)
+
+            ip_entry.grid(row=i, column=1, padx=5, pady=5, sticky="w")
+            port_entry.grid(row=i, column=2, padx=5, pady=5, sticky="w")
+            sysid_entry.grid(row=i, column=3, padx=5, pady=5, sticky="w")
+
+            entries[boat_id] = (ip_var, port_var, sysid_var)
+
+            test_btn = tk.Button(dialog, text="Test", width=6, bg="#95a5a6", fg="black")
+            test_btn.grid(row=i, column=4, padx=5, pady=5, sticky="w")
+            test_buttons[boat_id] = test_btn
+
+        def _test_connection(ip, port, sysid):
+            try:
+                link = MavlinkLink(host=ip, port=port, sysid=sysid, timeout=1.5)
+                msg = link.get_message("SYS_STATUS")
+                return msg is not None
+            except Exception:
+                return False
+
+        def _trigger_test(boat_id):
+            ip_var, port_var, sysid_var = entries[boat_id]
+            btn = test_buttons[boat_id]
+            try:
+                ip = ip_var.get().strip()
+                port = int(port_var.get().strip())
+                sysid = int(sysid_var.get().strip())
+            except Exception:
+                btn.config(bg="#e74c3c", text="KO")
+                return
+
+            btn.config(state="disabled", text="...")
+
+            def worker():
+                ok = _test_connection(ip, port, sysid)
+
+                def update_btn():
+                    btn.config(state="normal")
+                    if ok:
+                        btn.config(bg="#27ae60", text="OK")
+                    else:
+                        btn.config(bg="#e74c3c", text="KO")
+
+                dialog.after(0, update_btn)
+
+            threading.Thread(target=worker, daemon=True).start()
+
+        for boat_id, btn in test_buttons.items():
+            btn.configure(command=lambda bid=boat_id: _trigger_test(bid))
+
+        def apply_changes():
+            try:
+                for boat_id, (ip_var, port_var, sysid_var) in entries.items():
+                    ip = ip_var.get().strip()
+                    port = int(port_var.get().strip())
+                    sysid = int(sysid_var.get().strip())
+                    if not ip:
+                        raise ValueError(f"IP vide pour le bateau {boat_id}")
+                    if port <= 0 or port > 65535:
+                        raise ValueError(f"Port invalide pour le bateau {boat_id}")
+                    if sysid <= 0 or sysid > 255:
+                        raise ValueError(f"SysID invalide pour le bateau {boat_id}")
+
+                    boat = self.boats[boat_id]
+                    boat.host = ip
+                    boat.port = port
+                    boat.sysid = sysid
+                    boat.disconnect()
+
+                # Recréer le heartbeat avec la nouvelle configuration
+                self.heartbeat_manager.stop()
+                targets = [(boat.host, boat.sysid, boat.port) for boat in self.boats.values()]
+                self.heartbeat_manager = HeartbeatManager(targets, hz=1.0)
+                self.heartbeat_manager.start()
+
+                messagebox.showinfo("Info", "Configuration mise à jour")
+                dialog.destroy()
+            except Exception as e:
+                messagebox.showerror("Erreur", f"Configuration invalide: {e}")
+
+        btn_frame = tk.Frame(dialog)
+        btn_frame.grid(row=6, column=0, columnspan=5, pady=(15, 10))
+
+        tk.Button(btn_frame, text="Annuler", command=dialog.destroy).pack(side="right", padx=5)
+        tk.Button(btn_frame, text="Appliquer", command=apply_changes).pack(side="right", padx=5)
     
     def quit_app(self):
         """Quitte l'application"""
@@ -815,7 +943,7 @@ class BoatControlGUI:
 
 
 if __name__ == "__main__":
-    print("🛥️ Démarrage de l'interface de contrôle des bateaux Scout...")
+    print("Démarrage de l'interface de contrôle des bateaux Scout...")
     
     # Lancer l'interface
     app = BoatControlGUI()
