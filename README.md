@@ -1,3 +1,5 @@
+![LOGO](Logo_Scout.png)
+
 # Scout Guerlédan - Projet de navigation autonome multi-bateaux
 
 ## Présentation du projet
@@ -68,8 +70,8 @@ python Sim/Simulation.py
 #### 4. Simulation avec intervalles
 Tester l'estimation d'état par méthodes ensemblistes :
 ```bash
-cd Interval/scout_intervalle
-python simulation_fleet.py
+cd Sim
+python interval_test.py
 ```
 
 ### Configuration
@@ -90,16 +92,10 @@ PORT = 6040
 Contient l'implémentation des méthodes d'estimation par intervalles utilisant la bibliothèque Codac.
 
 - **`scout_intervalle/`** : Package principal pour la gestion de flotte avec intervalles
-  - `boat.py` : Classe Boat avec gestion d'état par intervalles
   - `controller.py` : Contrôleurs pour le pilotage des bateaux
-  - `dead_reckoning_beacon.py` : Estimation de position par dead reckoning
-  - `fleet.py` : Gestion de flotte multi-bateaux avec communications
-  - `paver.py` : Pavage pour l'analyse garantie de trajectoires
-  - `simulation_fleet.py` : Simulation de flotte avec méthodes ensemblistes
-- `Intervals_codac.py` : Fonctions utilitaires pour les intervalles Codac
 
 #### `Sim/`
-Premier simulateur de bateaux pour tester les algorithmes de contrôles sans intervalles avant déploiement.
+[Old] Premier simulateur de bateaux  pour tester les algorithmes de contrôles sans intervalles avant déploiement.
 
 - `Boat.py` : Modèle cinématique de bateau
 - `Controller.py` : Contrôleurs (cap-vers-point, cap-constant, etc.)
@@ -115,9 +111,10 @@ Modules utilitaires pour la communication et la gestion des bateaux.
 
 - `bblib.py` : Bibliothèque principale pour communication MAVLink avec BlueBoat
 - `geo_conversion.py` : Conversions géographiques (WGS84 ↔ NED)
-- `MotherShip.py` : Classe pour le bateau principal
-- `ScoutA.py`, `ScoutB.py` : Classes pour les bateaux éclaireurs
 - `settings.py` : Configuration globale du projet
+- `prediction.py` : Algorithmes de prédiction et estimation de trajectoires
+- `vibes_display.py` : Affichage et visualisation avec VIBes
+- `test_display.py` : Tests pour les fonctions de visualisation
 
 ### Scripts principaux
 
@@ -129,6 +126,12 @@ Scripts de test pour différentes fonctionnalités :
   - `test_formation_triangle.py` : Test de formation en triangle
   - `test_mavlinkrest.py` : Tests API REST MAVLink
   - `test_multiple_boat.py` : Tests multi-bateaux
+
+### Fichiers d'analyse
+
+- `trajectoires_analyse_complete.png` : Visualisation complète des trajectoires
+- `box_sizes_escape.png`, `box_sizes_no_escape.png` : Analyses de la taille des boîtes englobantes
+- `compute_times_reset.png`, `compute_times_no_reset.png` : Analyses des temps de calcul
 
 
 
