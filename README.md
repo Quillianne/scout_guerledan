@@ -147,5 +147,5 @@ Scripts de test pour différentes fonctionnalités :
 ## 👥 Contributeurs
 
 - Kilian BARANTAL
-- Ewen MÉLÉE
+- Ewen MELE
 - Aurèle PLANCHARD
