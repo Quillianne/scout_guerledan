@@ -86,14 +86,27 @@ def main():
     print("Les 3 bateaux sont initialisés et à l'arrêt.")
     print("Appuyez sur Ctrl+C pour quitter.")
     print("=" * 60)
+
+    # ------------------------------------------------------------------
+    # Attendre une première position GPS valide pour chaque bateau
+    # ------------------------------------------------------------------
+    print("\nAttente des positions GPS initiales...")
+    while True:
+        coords1 = gps1.get_coords()
+        coords2 = gps2.get_coords()
+        coords3 = gps3.get_coords()
+
+        if (
+            coords1[0] is not None and coords1[1] is not None
+            and coords2[0] is not None and coords2[1] is not None
+            and coords3[0] is not None and coords3[1] is not None
+        ):
+            break
+        time.sleep(0.5)
     
     # ------------------------------------------------------------------
     # Initialisation des contractors et de l'affichage VIBes
     # ------------------------------------------------------------------
-    coords1 = [0.0, 0.0]
-    coords2 = [0.0, 0.0]
-    coords3 = [0.0, 0.0]
-
     box1 = make_init_box(coords1[0], coords1[1])
     box2 = make_init_box(coords2[0], coords2[1])
     box3 = make_init_box(coords3[0], coords3[1])
