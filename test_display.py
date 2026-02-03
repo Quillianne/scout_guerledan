@@ -230,6 +230,7 @@ def main():
             
             update_before_draw = time.perf_counter()
             # Draw pavings in VIBes
+            display.set_truth_positions([p1, p2, p3])
             display.draw()
             update_end = time.perf_counter()
 

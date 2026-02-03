@@ -9,10 +9,9 @@ On utilise ensuite vibes_display.py pour estimer leur positions avec des interva
 import time
 import math
 import logging
-from xxlimited import new
 from codac import Interval, IntervalVector
 
-from utils.bblib import init_blueboat, BlueBoatConfig
+from utils.bblib import BlueBoatConfig
 from utils.prediction import equivalent_contractor
 from utils.vibes_display import VibesDisplay
 
@@ -24,6 +23,7 @@ from utils.vibes_display import VibesDisplay
 INIT_UNCERTAINTY = 2.5
 GPS_UNCERTAINTY = 2.5
 DIST_UNCERTAINTY = 2.5
+MOVE_UNCERTAINTY = 2.5
 
 # ----------------------------------------------------------------------------
 # Helpers
@@ -64,7 +64,6 @@ def main():
     print("=" * 60)
 
     # Load configuration for boats
-    from utils.bblib import BlueBoatConfig
     config = BlueBoatConfig()
 
     # Initialize boats using the configuration
@@ -91,16 +90,19 @@ def main():
     # ------------------------------------------------------------------
     # Initialisation des contractors et de l'affichage VIBes
     # ------------------------------------------------------------------
-    box1 = make_init_box(-60.0, 120.0)
-    box2 = make_init_box(10.0, 0.0)
-    box3 = make_init_box(0.0, 10.0)
+    coords1 = [0.0, 0.0]
+    coords2 = [0.0, 0.0]
+    coords3 = [0.0, 0.0]
+
+    box1 = make_init_box(coords1[0], coords1[1])
+    box2 = make_init_box(coords2[0], coords2[1])
+    box3 = make_init_box(coords3[0], coords3[1])
+
     c1 = equivalent_contractor(box1)
     c2 = equivalent_contractor(box2)
     c3 = equivalent_contractor(box3)
+
     display = VibesDisplay(c1, c2, c3, precision=1.0, margin=10.0)
-    coords1 = [-60.0, 120.0]
-    coords2 = [-60.0, 120.0]
-    coords3 = [-60.0, 120.0]
 
     # ------------------------------------------------------------------
     # Boucle principale d'affichage
@@ -114,41 +116,57 @@ def main():
 
             # Handle None case for Boat 1
             if new_coords1[0] is not None and new_coords1[1] is not None:
+                prev_coords1 = coords1
                 coords1 = new_coords1
-                print(f"[Info] Position of Boat 1 : {coords1}")
             else:
-                print("[Warning] No data received from Boat 1. Using last known coordinates.")
+                prev_coords1 = coords1
 
             # Handle None case for Boat 2
             if new_coords2[0] is not None and new_coords2[1] is not None:
+                prev_coords2 = coords2
                 coords2 = new_coords2
-                print(f"[Info] Position of Boat 2 : {coords2}")
             else:
-                print("[Warning] No data received from Boat 2. Using last known coordinates.")
+                prev_coords2 = coords2
 
             # Handle None case for Boat 3
             if new_coords3[0] is not None and new_coords3[1] is not None:
+                prev_coords3 = coords3
                 coords3 = new_coords3
-                print(f"[Info] Position of Boat 3 : {coords3}")
             else:
-                print("[Warning] No data received from Boat 3. Using last known coordinates.")
+                prev_coords3 = coords3
 
             # Log the data
             logging.info(f"Boat 1: {coords1}, Boat 2: {coords2}, Boat 3: {coords3}")
 
-            # Initialisation des boîtes pour les bateaux
-            box1 = IntervalVector([coords1[0], coords1[1]]).inflate(GPS_UNCERTAINTY)
-            box2 = IntervalVector([coords2[0], coords2[1]]).inflate(GPS_UNCERTAINTY)
-            box3 = IntervalVector([coords3[0], coords3[1]]).inflate(GPS_UNCERTAINTY)
+            # Dead reckoning (mouvement)
+            dx1 = coords1[0] - prev_coords1[0]
+            dy1 = coords1[1] - prev_coords1[1]
+            dx2 = coords2[0] - prev_coords2[0]
+            dy2 = coords2[1] - prev_coords2[1]
+            dx3 = coords3[0] - prev_coords3[0]
+            dy3 = coords3[1] - prev_coords3[1]
 
-            # Mise à jour des contraintes de distance
+            c1.add_movement_condition(
+                Interval(dx1).inflate(MOVE_UNCERTAINTY),
+                Interval(dy1).inflate(MOVE_UNCERTAINTY),
+            )
+            c2.add_movement_condition(
+                Interval(dx2).inflate(MOVE_UNCERTAINTY),
+                Interval(dy2).inflate(MOVE_UNCERTAINTY),
+            )
+            c3.add_movement_condition(
+                Interval(dx3).inflate(MOVE_UNCERTAINTY),
+                Interval(dy3).inflate(MOVE_UNCERTAINTY),
+            )
+
+            # GPS (uniquement bateau 1)
+            if new_coords1[0] is not None and new_coords1[1] is not None:
+                c1.add_gps_condition(IntervalVector([coords1[0], coords1[1]]).inflate(GPS_UNCERTAINTY))
+
+            # Contraintes de distance
             d12 = Interval(true_distance(coords1, coords2)).inflate(DIST_UNCERTAINTY)
             d13 = Interval(true_distance(coords1, coords3)).inflate(DIST_UNCERTAINTY)
             d23 = Interval(true_distance(coords2, coords3)).inflate(DIST_UNCERTAINTY)
-
-            c1 = equivalent_contractor(box1)
-            c2 = equivalent_contractor(box2)
-            c3 = equivalent_contractor(box3)
 
             c1.add_distance_condition(d12, c2.get_box())
             c1.add_distance_condition(d13, c3.get_box())
@@ -160,10 +178,11 @@ def main():
             c3.add_distance_condition(d23, c2.get_box())
 
             # Affichage des pavages avec VIBes
+            display.set_truth_positions([coords1, coords2, coords3])
             display.draw()
 
             # Attente avant la prochaine mise à jour
-            time.sleep(1.0)
+            time.sleep(10.0)
 
     except KeyboardInterrupt:
         print("\n[Main] Interruption utilisateur détectée. Données sauvegardées dans 'boat_data.log'.")

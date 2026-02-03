@@ -65,15 +65,31 @@ class VibesDisplay:
         margin: float = 10.0,
         min_width: float = 40.0,
         min_height: float = 40.0,
+        truth_box_size: float = 0.5,
     ):
         self.contractors = [ctc_a, ctc_b, ctc_c]
         self.precision = precision
         self.margin = margin
         self.min_width = min_width
         self.min_height = min_height
+        self.truth_box_size = truth_box_size
         self.fig = Figure2D("Prediction (Contractors)", GraphicOutput.VIBES)
         self.colors = [Color.red(), Color.blue(), Color.green()]
         self._view_box = None
+        self._truth_positions = None
+        self._truth_pending = False
+
+    def set_truth_positions(self, positions):
+        """
+        Stocke les positions réelles (x, y). Elles seront dessinées au prochain draw.
+
+        Args:
+            positions: iterable de positions [(x, y), ...] (None autorisé)
+        """
+        if positions is None:
+            return
+        self._truth_positions = list(positions)
+        self._truth_pending = True
 
     def _ensure_min_size(self, box: IntervalVector) -> IntervalVector:
         width = box[0].diam()
@@ -173,3 +189,15 @@ class VibesDisplay:
         for idx, box in enumerate(all_boxes):
             color = self.colors[idx % len(self.colors)]
             self.fig.draw_box(box, color)
+
+        if self._truth_pending and self._truth_positions:
+            half = self.truth_box_size / 2.0
+            for pos in self._truth_positions:
+                if pos is None or len(pos) < 2:
+                    continue
+                x, y = pos[0], pos[1]
+                if x is None or y is None:
+                    continue
+                truth_box = IntervalVector([[x - half, x + half], [y - half, y + half]])
+                self.fig.draw_box(truth_box, Color.black())
+            self._truth_pending = False
