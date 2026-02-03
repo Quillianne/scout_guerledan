@@ -78,6 +78,9 @@ class VibesDisplay:
         self._view_box = None
         self._truth_positions = None
         self._truth_pending = False
+        self._half_width = self.min_width / 2.0
+        self._half_height = self.min_height / 2.0
+        self._ratio = self.min_width / self.min_height if self.min_height != 0 else 1.0
 
     def set_truth_positions(self, positions):
         """
@@ -108,47 +111,29 @@ class VibesDisplay:
         return box
 
     def _update_view_box(self, hull: IntervalVector, mothership_box: IntervalVector):
-        target = IntervalVector([
-            [hull[0].lb() - self.margin, hull[0].ub() + self.margin],
-            [hull[1].lb() - self.margin, hull[1].ub() + self.margin],
-        ])
-        target = self._ensure_min_size(target)
-
         cx = mothership_box[0].mid()
         cy = mothership_box[1].mid()
 
-        base = IntervalVector([
-            [cx - self.min_width / 2.0, cx + self.min_width / 2.0],
-            [cy - self.min_height / 2.0, cy + self.min_height / 2.0],
+        req_half_w = max(abs(hull[0].lb() - cx), abs(hull[0].ub() - cx)) + self.margin
+        req_half_h = max(abs(hull[1].lb() - cy), abs(hull[1].ub() - cy)) + self.margin
+
+        # Keep fixed ratio (no distortion)
+        if req_half_h == 0:
+            req_half_h = self.min_height / 2.0
+        req_ratio = req_half_w / req_half_h
+        if req_ratio > self._ratio:
+            req_half_h = req_half_w / self._ratio
+        else:
+            req_half_w = req_half_h * self._ratio
+
+        # Expand only, never shrink
+        self._half_width = max(self._half_width, req_half_w, self.min_width / 2.0)
+        self._half_height = max(self._half_height, req_half_h, self.min_height / 2.0)
+
+        self._view_box = IntervalVector([
+            [cx - self._half_width, cx + self._half_width],
+            [cy - self._half_height, cy + self._half_height],
         ])
-
-        if self._view_box is None:
-            self._view_box = IntervalVector(base)
-            if not (
-                target[0].lb() >= self._view_box[0].lb()
-                and target[0].ub() <= self._view_box[0].ub()
-                and target[1].lb() >= self._view_box[1].lb()
-                and target[1].ub() <= self._view_box[1].ub()
-            ):
-                self._view_box |= target
-                self._view_box = self._ensure_min_size(self._view_box)
-            return
-
-        # Keep view centered on mothership, but expand if needed
-        self._view_box = IntervalVector(base)
-
-        within_x = (
-            target[0].lb() >= self._view_box[0].lb()
-            and target[0].ub() <= self._view_box[0].ub()
-        )
-        within_y = (
-            target[1].lb() >= self._view_box[1].lb()
-            and target[1].ub() <= self._view_box[1].ub()
-        )
-
-        if not (within_x and within_y):
-            self._view_box |= target
-            self._view_box = self._ensure_min_size(self._view_box)
 
     def draw(self):
         """Draw pavings and current boxes for each contractor."""
