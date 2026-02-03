@@ -9,12 +9,12 @@
     "boat_id": 2,
     "host": "192.168.2.202",
     "port": 6040,
-    "sysid": 1
+    "sysid": 2
   },
   {
     "boat_id": 3,
     "host": "192.168.2.203",
     "port": 6040,
-    "sysid": 1
+    "sysid": 3
   }
 ]

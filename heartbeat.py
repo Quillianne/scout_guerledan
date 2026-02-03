@@ -9,7 +9,7 @@ import argparse
 import signal
 import sys
 
-from utils.bblib import MavlinkLink  # import direct, pas d'option --module
+from utils.bblib import MavlinkLink, BlueBoatConfig  # import direct, pas d'option --module
 
 # ---------------------------------------------------------------------
 # Construction du message HEARTBEAT (format mavlink2rest)
@@ -96,7 +96,7 @@ def run(targets, hz: float, port: int, compid: int, timeout: float):
 # ---------------------------------------------------------------------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Envoi périodique de HEARTBEAT MAVLink (GCS) via mavlink2rest.")
-    parser.add_argument("--targets", default="192.168.2.202:2,192.168.2.203:3",
+    parser.add_argument("--targets",
                         help="Liste des cibles 'IP:SYSID' séparées par des virgules.")
     parser.add_argument("--hz", type=float, default=1.0, help="Fréquence des heartbeat (Hz).")
     parser.add_argument("--port", type=int, default=6040, help="Port mavlink2rest BlueOS (par défaut 6040).")
@@ -105,7 +105,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     try:
-        targets = parse_targets(args.targets)
+        if args.targets:
+            targets = parse_targets(args.targets)
+        else:
+            cfg = BlueBoatConfig()
+            targets = [(b["host"], b.get("sysid", b["boat_id"])) for b in cfg.boats]
     except ValueError as e:
         print(f"[ERR] {e}")
         sys.exit(2)

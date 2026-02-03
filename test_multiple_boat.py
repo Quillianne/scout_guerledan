@@ -21,19 +21,16 @@ import threading
 import numpy as np
 
 # Import du module principal (bblib.py)
-from utils.bblib import init_blueboat
+from utils.bblib import BlueBoatConfig
 
 
 def main():
     # ------------------------------------------------------------------
     # Initialisation des deux bateaux
     # ------------------------------------------------------------------
-    mav2, imu2, gps2, motors2, nav2 = init_blueboat(
-        host="192.168.2.202", sysid=2
-    )
-    mav3, imu3, gps3, motors3, nav3 = init_blueboat(
-        host="192.168.2.203", sysid=3
-    )
+    cfg = BlueBoatConfig()
+    mav2, imu2, gps2, motors2, nav2 = cfg.init_from_config(2)
+    mav3, imu3, gps3, motors3, nav3 = cfg.init_from_config(3)
 
     # ------------------------------------------------------------------
     # 1) Bateau 1 : suivi de cap fixe (90°) pendant 5 s
@@ -106,7 +103,7 @@ def main():
             )
 
             # Vérification de la durée
-            if time.time()j - start_time > duration:
+            if time.time() - start_time > duration:
                 break
 
             time.sleep(nav3.dt)

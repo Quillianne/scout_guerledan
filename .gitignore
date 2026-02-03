@@ -6,3 +6,6 @@ venv/
 build/
 .vscode/
 blueboat_rtt_cpp/
+VIBes-viewer
+*.log
+boat_control_config.json

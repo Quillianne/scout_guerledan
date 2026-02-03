@@ -10,6 +10,7 @@ import math
 import json
 import argparse
 import requests
+from utils.bblib import BlueBoatConfig
 
 class M2R:
     def __init__(self, host="192.168.2.202", port=6040, sysid=2, compid=1, timeout=3.0):
@@ -137,6 +138,7 @@ class M2R:
 
 def main():
     ap = argparse.ArgumentParser(description="Control motors via mavlink2rest and read GPS/IMU")
+    ap.add_argument("--id", type=int, help="ID du bateau (charge host/port/sysid/compid depuis la config)")
     ap.add_argument("--host", default="192.168.2.202")
     ap.add_argument("--port", type=int, default=6040)
     ap.add_argument("--sysid", type=int, default=2)
@@ -155,7 +157,22 @@ def main():
     sub.add_parser("gps")
 
     args = ap.parse_args()
-    m2r = M2R(host=args.host, port=args.port, sysid=args.sysid, compid=args.compid)
+    if args.id is not None:
+        cfg = BlueBoatConfig()
+        item = cfg.get_boat(args.id)
+        if item is None:
+            raise ValueError(f"Boat id {args.id} introuvable dans la config")
+        host = item.get("host", args.host)
+        port = item.get("port", args.port)
+        sysid = item.get("sysid", args.id)
+        compid = item.get("compid", args.compid)
+    else:
+        host = args.host
+        port = args.port
+        sysid = args.sysid
+        compid = args.compid
+
+    m2r = M2R(host=host, port=port, sysid=sysid, compid=compid)
 
     if args.cmd == "arm":
         print(m2r.arm(bool(args.state)))
