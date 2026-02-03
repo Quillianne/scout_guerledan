@@ -1,4 +1,4 @@
-![LOGO](Logo_Scout.png)
+![LOGO](figures/Logo_Scout.png)
 
 # Scout Guerlédan - Projet de navigation autonome multi-bateaux
 
