@@ -1,16 +1,5 @@
 """
-Test simulation with three fake boats in triangle (escape scenario).
-- Straight motion for all boats (same direction)
-- After the 10th iteration, boat 2 performs a small escape pattern:
-  1) +dx*2 on x
-  2) +dx on y
-  3) +0
-  4) -dx on y
-  5) +dx on x
-- Every 2 seconds:
-  * add_movement_condition using measured displacement with uncertainty
-  * update distance constraints
-  * draw pavings with VIBes
+Test simulation with three fake boats in triangle 
 """
 
 import math

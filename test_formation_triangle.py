@@ -19,7 +19,7 @@ def main():
     # ------------------------------------------------------------------
     # mav1, imu1, gps1, motors1, nav1 = init_blueboat(
     #     host="192.168.1.1",
-    #     port=8888
+    #     port=6040
     # )
 
     mav2, imu2, gps2, motors2, nav2 = init_blueboat(
