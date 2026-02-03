@@ -12,8 +12,7 @@ import logging
 from xxlimited import new
 from codac import Interval, IntervalVector
 
-from utils.bblib import init_blueboat
-
+from utils.bblib import init_blueboat, BlueBoatConfig
 from utils.prediction import equivalent_contractor
 from utils.vibes_display import VibesDisplay
 
@@ -64,37 +63,23 @@ def main():
     print("Initialisation des 3 bateaux...")
     print("=" * 60)
 
-    # ------------------------------------------------------------------
-    # Initialisation des trois bateaux
-    # ------------------------------------------------------------------
+    # Load configuration for boats
+    from utils.bblib import BlueBoatConfig
+    config = BlueBoatConfig()
 
-    # Bateau 1 (sysid=1)
-    print("\n[Bateau 1] Initialisation sur 127.0.0.1...")
-    mav1, imu1, gps1, motors1, nav1 = init_blueboat(
-        host="127.0.0.1", 
-        port=5763,
-        sysid=1
-    )
+    # Initialize boats using the configuration
+    print("\n[Bateau 1] Initialisation via configuration...")
+    mav1, imu1, gps1, motors1, nav1 = config.init_from_config(boat_id=1)
     motors1.stop_motors()
     print("[Bateau 1] ✓ Initialisé")
 
-    # Bateau 2 (sysid=2)
-    print("\n[Bateau 2] Initialisation sur 192.168.2.202...")
-    mav2, imu2, gps2, motors2, nav2 = init_blueboat(
-        host="192.168.2.202", 
-        port=6040,
-        sysid=2
-    )
+    print("\n[Bateau 2] Initialisation via configuration...")
+    mav2, imu2, gps2, motors2, nav2 = config.init_from_config(boat_id=2)
     motors2.stop_motors()
     print("[Bateau 2] ✓ Initialisé")
 
-    # Bateau 3 (sysid=3)
-    print("\n[Bateau 3] Initialisation sur 192.168.2.203...")
-    mav3, imu3, gps3, motors3, nav3 = init_blueboat(
-        host="192.168.2.203", 
-        port=6040,
-        sysid=3
-    )
+    print("\n[Bateau 3] Initialisation via configuration...")
+    mav3, imu3, gps3, motors3, nav3 = config.init_from_config(boat_id=3)
     motors3.stop_motors()
     print("[Bateau 3] ✓ Initialisé")
 
@@ -106,16 +91,16 @@ def main():
     # ------------------------------------------------------------------
     # Initialisation des contractors et de l'affichage VIBes
     # ------------------------------------------------------------------
-    box1 = make_init_box(0.0, 0.0)
+    box1 = make_init_box(-60.0, 120.0)
     box2 = make_init_box(10.0, 0.0)
     box3 = make_init_box(0.0, 10.0)
     c1 = equivalent_contractor(box1)
     c2 = equivalent_contractor(box2)
     c3 = equivalent_contractor(box3)
     display = VibesDisplay(c1, c2, c3, precision=1.0, margin=10.0)
-    coords1 = [0.0, 0.0]
-    coords2 = [10.0, 0.0]
-    coords3 = [0.0, 10.0]
+    coords1 = [-60.0, 120.0]
+    coords2 = [-60.0, 120.0]
+    coords3 = [-60.0, 120.0]
 
     # ------------------------------------------------------------------
     # Boucle principale d'affichage
@@ -130,18 +115,21 @@ def main():
             # Handle None case for Boat 1
             if new_coords1[0] is not None and new_coords1[1] is not None:
                 coords1 = new_coords1
+                print(f"[Info] Position of Boat 1 : {coords1}")
             else:
                 print("[Warning] No data received from Boat 1. Using last known coordinates.")
 
             # Handle None case for Boat 2
             if new_coords2[0] is not None and new_coords2[1] is not None:
                 coords2 = new_coords2
+                print(f"[Info] Position of Boat 2 : {coords2}")
             else:
                 print("[Warning] No data received from Boat 2. Using last known coordinates.")
 
             # Handle None case for Boat 3
             if new_coords3[0] is not None and new_coords3[1] is not None:
                 coords3 = new_coords3
+                print(f"[Info] Position of Boat 3 : {coords3}")
             else:
                 print("[Warning] No data received from Boat 3. Using last known coordinates.")
 
