@@ -106,7 +106,7 @@ def main():
             )
 
             # Vérification de la durée
-            if time.time() - start_time > duration:
+            if time.time()j - start_time > duration:
                 break
 
             time.sleep(nav3.dt)

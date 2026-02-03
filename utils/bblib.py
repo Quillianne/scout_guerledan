@@ -15,6 +15,7 @@ import datetime
 import socket
 import math
 import json
+import os
 import requests
 
 
@@ -27,7 +28,7 @@ from utils.settings import DT, KP, MAX_CMD, BASE_SPEED_MULTIPLIER
 # Lien MAVLink2Rest (BlueOS)
 # ---------------------------------------------------------------------------
 class MavlinkLink:
-    def __init__(self, host="192.168.2.202", port=6040, sysid=2, compid=1, timeout=3.0):
+    def __init__(self, host="192.168.2.202", port=6040, sysid=2, compid=1, timeout=3.0, silent_errors=False):
         """
         Connexion via mavlink2rest API pour BlueOS
         """
@@ -36,6 +37,7 @@ class MavlinkLink:
         self.sysid = int(sysid)
         self.compid = int(compid)
         self.timeout = float(timeout)
+        self.silent_errors = silent_errors
         self.session = requests.Session()
         self.session.trust_env = False  # ignore proxies
         self.headers = {"Content-Type": "application/json", "Accept": "application/json", "Connection": "close"}
@@ -52,7 +54,8 @@ class MavlinkLink:
                 raise RuntimeError(f"POST {message.get('type')} -> {r.status_code} {r.text}")
             return r.text.strip()
         except Exception as e:
-            print(f"Erreur POST message: {e}")
+            if not self.silent_errors:
+                print(f"Erreur POST message: {e}")
             return None
 
     def get_message(self, msg_name: str):
@@ -579,6 +582,80 @@ def init_blueboat(host="192.168.2.202", port=6040, sysid=2, compid=1, max_cmd=MA
     navigation = Navigation(imu, gps, motor_driver, max_cmd=max_cmd, Kp=Kp, base_speed_multiplier=base_speed_multiplier)
     
     return mav, imu, gps, motor_driver, navigation
+
+
+# ---------------------------------------------------------------------------
+# Classe utilitaire pour config + init depuis fichier
+# ---------------------------------------------------------------------------
+
+class BlueBoatConfig:
+    """Charge une configuration et initialise un BlueBoat à partir d'un boat_id."""
+
+    def __init__(self, config_path="boat_control_config.json"):
+        self.config_path = config_path
+        self.boats = self._load_config()
+
+    def _default_config(self):
+        return [
+            {"boat_id": 1, "host": "192.168.2.201", "port": 6040, "sysid": 1, "compid": 1},
+            {"boat_id": 2, "host": "192.168.2.202", "port": 6040, "sysid": 2, "compid": 1},
+            {"boat_id": 3, "host": "192.168.2.203", "port": 6040, "sysid": 3, "compid": 1},
+        ]
+
+    def _load_config(self):
+        if not os.path.exists(self.config_path):
+            return self._default_config()
+        try:
+            with open(self.config_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, list):
+                return self._default_config()
+            cleaned = []
+            for item in data:
+                if not isinstance(item, dict) or "boat_id" not in item or "host" not in item:
+                    continue
+                cleaned.append({
+                    "boat_id": int(item["boat_id"]),
+                    "host": str(item["host"]),
+                    "port": int(item.get("port", 6040)),
+                    "sysid": int(item.get("sysid", item["boat_id"])),
+                    "compid": int(item.get("compid", 1)),
+                })
+            return cleaned if cleaned else self._default_config()
+        except Exception:
+            return self._default_config()
+
+    def get_boat(self, boat_id: int):
+        for item in self.boats:
+            if int(item.get("boat_id")) == int(boat_id):
+                return item
+        return None
+
+    def init_from_config(self, boat_id: int, **overrides):
+        """Retourne (mav, imu, gps, motor_driver, navigation) à partir du boat_id."""
+        item = self.get_boat(boat_id)
+        if item is None:
+            raise ValueError(f"Boat id {boat_id} introuvable dans la config")
+
+        cfg = {**item, **overrides}
+        return init_blueboat(
+            host=cfg.get("host"),
+            port=cfg.get("port", 6040),
+            sysid=cfg.get("sysid", boat_id),
+            compid=cfg.get("compid", 1),
+            max_cmd=cfg.get("max_cmd", MAX_CMD),
+            dt=cfg.get("dt", DT),
+            Kp=cfg.get("Kp", KP),
+            base_speed_multiplier=cfg.get("base_speed_multiplier", BASE_SPEED_MULTIPLIER),
+        )
+
+    def init_all(self, **overrides):
+        """Retourne un dict {boat_id: (mav, imu, gps, motor_driver, navigation)}."""
+        result = {}
+        for item in self.boats:
+            boat_id = int(item.get("boat_id"))
+            result[boat_id] = self.init_from_config(boat_id, **overrides)
+        return result
 
 
 # ---------------------------------------------------------------------------

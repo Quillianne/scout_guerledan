@@ -237,7 +237,7 @@ def main():
             update_compute_times.append(update_before_draw - update_start)
             update_draw_times.append(update_end - update_before_draw)
 
-        time.sleep(DT/100)
+        time.sleep(DT/2)
 
     if PLOT_BOX_SIZES:
         plt.figure("Box sizes")
