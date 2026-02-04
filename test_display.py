@@ -18,10 +18,10 @@ UPDATE_STEPS = int(UPDATE_REAL_INTERVAL / DT)
 DO_ESCAPE = True
 PLOT_BOX_SIZES = True
 
-SPEED = 10.0
+SPEED = 1.0
 MOVE_UNCERTAINTY = 0.5
-DIST_UNCERTAINTY = 0.5
-GPS_UNCERTAINTY = 0.5
+DIST_UNCERTAINTY = 0.1
+GPS_UNCERTAINTY = 0.
 
 INIT_UNCERTAINTY = 1.0
 
@@ -100,7 +100,7 @@ def main():
         if (
             (not maneuver_active)
             and DO_ESCAPE
-            and ((box2_size > 18.0) or (box3_size > 18.0))
+            and ((box2_size > 20.0) or (box3_size > 20.0))
         ):
             start_maneuver_step = current_step + 1
             escape3_start_step = start_maneuver_step
@@ -192,14 +192,18 @@ def main():
             d13 = Interval(true_distance(p1, p3)).inflate(DIST_UNCERTAINTY)
             d23 = Interval(true_distance(p2, p3)).inflate(DIST_UNCERTAINTY)
 
-            c1.add_distance_condition(d12, c2.get_box())
-            c1.add_distance_condition(d13, c3.get_box())
+            #c1.add_distance_condition(d12, c2.get_box())
+            #c1.add_distance_condition(d13, c3.get_box())
+            c1.add_double_distance_condition(d12, c2.get_box(), d13, c3.get_box())
 
-            c2.add_distance_condition(d12, c1.get_box())
-            c2.add_distance_condition(d23, c3.get_box())
+            #c2.add_distance_condition(d12, c1.get_box())
+            #c2.add_distance_condition(d23, c3.get_box())
+            c2.add_double_distance_condition(d12, c1.get_box(), d23, c3.get_box())
 
-            c3.add_distance_condition(d13, c1.get_box())
-            c3.add_distance_condition(d23, c2.get_box())
+            #c3.add_distance_condition(d13, c1.get_box())
+            #c3.add_distance_condition(d23, c2.get_box())
+            c3.add_double_distance_condition(d13, c1.get_box(), d23, c2.get_box())
+
 
             if current_step == escape3_start_step:
                 box2 = c2.get_box()
@@ -224,7 +228,7 @@ def main():
             if current_step == start_maneuver_step + 10:
                 c3.set_ctc(c3.get_box())
 
-            if current_step == start_maneuver_step + 18:
+            if current_step == start_maneuver_step + 17:
                 c2.set_ctc(c2.get_box())
                 c1.set_ctc(c1.get_box())
             
@@ -238,7 +242,7 @@ def main():
             update_compute_times.append(update_before_draw - update_start)
             update_draw_times.append(update_end - update_before_draw)
 
-        time.sleep(DT/2)
+        time.sleep(DT/5)
 
     if PLOT_BOX_SIZES:
         plt.figure("Box sizes")
