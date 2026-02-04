@@ -126,6 +126,7 @@ class BoatMonitor:
         self.battery_data = {"voltage": None, "percentage": None, "current": None}
         self.heading = None
         self.mode_data = {"mode": None, "armed": None}
+        self.cell_count = None
         
         # Objets MAVLink
         self.mav = None
@@ -143,37 +144,31 @@ class BoatMonitor:
         self.home_thread = None
         self.stop_home = False
     
-    def calculate_battery_percentage_4s(self, voltage):
+    def calculate_battery_percentage(self, voltage, cell_count):
         """
-        Calcule le pourcentage de batterie pour une batterie LiPo 4S
-        basé sur la tension totale
-        
-        Tension 4S LiPo:
-        - Pleine charge: 16.8V (4.2V par cellule)
-        - Nominale: 14.8V (3.7V par cellule)  
-        - Décharge sécuritaire: 14.0V (3.5V par cellule)
-        - Critique: 13.2V (3.3V par cellule)
+        Calcule le pourcentage de batterie pour une LiPo 3S/4S
+        basé sur la tension totale.
         """
+        if voltage is None or not cell_count:
+            return None
+
+        if cell_count == 3:
+            v_max, v_nom, v_min = 12.6, 11.1, 9.9
+        else:
+            v_max, v_nom, v_min = 16.8, 14.8, 13.2
+
+        voltage = max(min(voltage, v_max), v_min)
+        if voltage >= v_nom:
+            percentage = 50 + 50 * (voltage - v_nom) / (v_max - v_nom)
+        else:
+            percentage = 50 * (voltage - v_min) / (v_nom - v_min)
+
+        return max(0, min(100, percentage))
+
+    def detect_cell_count(self, voltage):
         if voltage is None:
             return None
-            
-        # Tensions de référence pour batterie 4S
-        V_MAX = 16.8  # Tension maximale (4.2V × 4)
-        V_NOM = 14.8  # Tension nominale (3.7V × 4)  
-        V_MIN = 13.2  # Tension minimale sécuritaire (3.3V × 4)
-        
-        # Limiter la tension dans la plage valide
-        voltage = max(min(voltage, V_MAX), V_MIN)
-        
-        # Calcul du pourcentage avec courbe non-linéaire approximative
-        if voltage >= V_NOM:
-            # Entre nominal et max (courbe plus douce dans cette zone)
-            percentage = 50 + 50 * (voltage - V_NOM) / (V_MAX - V_NOM)
-        else:
-            # Entre min et nominal (courbe plus raide)
-            percentage = 50 * (voltage - V_MIN) / (V_NOM - V_MIN)
-        
-        return max(0, min(100, percentage))
+        return 4 if voltage >= 13.5 else 3
     
     def connect(self):
         """Tente de se connecter au bateau"""
@@ -226,8 +221,9 @@ class BoatMonitor:
             if battery_info:
                 voltage = battery_info.get("voltage_V")
                 self.battery_data["voltage"] = voltage
-                # Calculer le pourcentage basé sur la tension 4S au lieu d'utiliser celui retourné
-                self.battery_data["percentage"] = self.calculate_battery_percentage_4s(voltage)
+                if self.cell_count is None and voltage is not None:
+                    self.cell_count = self.detect_cell_count(voltage)
+                self.battery_data["percentage"] = self.calculate_battery_percentage(voltage, self.cell_count)
                 self.battery_data["current"] = battery_info.get("current_A")
             
             # Heading depuis IMU
@@ -736,9 +732,12 @@ class BoatControlGUI:
                 else:
                     color = "#e74c3c"  # Rouge
                 
-                # Affichage avec tension et pourcentage calculé (4S)
+                cell_count = boat.cell_count or 0
+                cell_v = (voltage / cell_count) if cell_count else 0.0
+                cell_text = f"{cell_v:.2f}V/cell" if cell_count else "--V/cell"
+                pack_text = f"{cell_count}S" if cell_count else "?S"
                 boat.percentage_label.config(
-                    text=f"Niveau: {percentage:.0f}% (4S: {voltage:.2f}V)", 
+                    text=f"Niveau: {percentage:.0f}% ({cell_text})", 
                     fg=color
                 )
             else:

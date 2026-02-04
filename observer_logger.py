@@ -251,7 +251,7 @@ def run_live():
         coords1 = gps1.get_coords()
         coords2 = gps2.get_coords()
         coords3 = gps3.get_coords()
-        print(coords2,coords3)
+        #print(coords2,coords3)
 
         if (
             coords1[0] is not None and coords1[1] is not None
