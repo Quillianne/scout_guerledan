@@ -866,21 +866,23 @@ class BoatControlGUI:
         armed_chk = tk.Checkbutton(dialog, text="Armé", variable=armed_var, command=toggle_arm)
         armed_chk.pack(anchor="w", padx=10, pady=10)
 
-        left_scale = tk.Scale(dialog, from_=-250, to=250, orient="horizontal", label="Moteur gauche")
-        right_scale = tk.Scale(dialog, from_=-250, to=250, orient="horizontal", label="Moteur droit")
-        left_scale.pack(fill="x", padx=10)
-        right_scale.pack(fill="x", padx=10)
+        throttle_scale = tk.Scale(dialog, from_=1000, to=2000, orient="horizontal", label="Throttle (PWM)")
+        steering_scale = tk.Scale(dialog, from_=1000, to=2000, orient="horizontal", label="Steering (PWM)")
+        throttle_scale.set(1500)
+        steering_scale.set(1500)
+        throttle_scale.pack(fill="x", padx=10)
+        steering_scale.pack(fill="x", padx=10)
 
         auto_running = {"active": True}
 
         def send_cmd():
-            if not boat.motors:
+            if not boat.mav:
                 return
-            left = float(left_scale.get())
-            right = float(right_scale.get())
+            ch1 = int(throttle_scale.get())
+            ch3 = int(steering_scale.get())
 
             def worker():
-                boat.motors.drive_lr(left, right, seconds=0.2, rate_hz=10.0)
+                boat.mav.send_rc_override(ch1=ch1, ch3=ch3)
 
             threading.Thread(target=worker, daemon=True).start()
 
@@ -889,7 +891,7 @@ class BoatControlGUI:
                 return
             if armed_var.get():
                 send_cmd()
-            dialog.after(1000, auto_loop)
+            dialog.after(100, auto_loop)
 
         auto_loop()
 
