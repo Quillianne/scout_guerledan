@@ -448,7 +448,7 @@ class BoatControlGUI:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Contrôle des Bateaux Scout")
-        self.root.geometry("1000x600")
+        self.root.geometry("1000x650")
         self.root.configure(bg="#f0f0f0")
         
         # Configuration des bateaux (à adapter selon votre réseau)
@@ -619,6 +619,9 @@ class BoatControlGUI:
         row3 = tk.Frame(controls_frame, bg="#ecf0f1")
         row3.pack(fill="x", pady=(4, 0))
 
+        row4 = tk.Frame(controls_frame, bg="#ecf0f1")
+        row4.pack(fill="x", pady=(4, 0))
+
         arm_btn = tk.Button(row1, text="Armer", 
                    command=lambda: self.arm_boat(boat.boat_id),
                    font=("Arial", 9), bg="#27ae60", fg="black")
@@ -648,6 +651,11 @@ class BoatControlGUI:
                command=lambda: self.set_mode_boat(boat.boat_id, "HOLD"),
                font=("Arial", 9), bg="#95a5a6", fg="black")
         hold_btn.pack(side="left", padx=2, fill="x", expand=True)
+
+        test_btn = tk.Button(row4, text="Test motors", 
+            command=lambda: self.open_motor_test_window(boat.boat_id),
+            font=("Arial", 9), bg="#bdc3c7", fg="black")
+        test_btn.pack(side="left", padx=2, fill="x", expand=True)
         
         # Indicateur d'état retour maison
         boat.home_status_label = tk.Label(controls_frame, text="", 
@@ -827,6 +835,72 @@ class BoatControlGUI:
                 messagebox.showinfo("Info", f"Mode {mode_name} demandé pour le bateau {boat_id}")
         else:
             messagebox.showerror("Erreur", f"Bateau {boat_id} non connecté")
+
+    def open_motor_test_window(self, boat_id):
+        """Fenêtre de test moteurs avec arm/disarm et sliders."""
+        boat = self.boats.get(boat_id)
+        if not boat or not boat.connected:
+            messagebox.showerror("Erreur", f"Bateau {boat_id} non connecté")
+            return
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"Test moteurs - Bateau {boat_id}")
+        dialog.geometry("360x260")
+        dialog.resizable(False, False)
+
+        armed_var = tk.BooleanVar(value=bool(boat.mode_data.get("armed")))
+
+        def sync_armed():
+            if not dialog.winfo_exists():
+                return
+            if boat.mode_data.get("armed") is not None:
+                armed_var.set(bool(boat.mode_data.get("armed")))
+            dialog.after(500, sync_armed)
+
+        def toggle_arm():
+            if armed_var.get():
+                boat.arm()
+            else:
+                boat.disarm()
+
+        armed_chk = tk.Checkbutton(dialog, text="Armé", variable=armed_var, command=toggle_arm)
+        armed_chk.pack(anchor="w", padx=10, pady=10)
+
+        left_scale = tk.Scale(dialog, from_=-250, to=250, orient="horizontal", label="Moteur gauche")
+        right_scale = tk.Scale(dialog, from_=-250, to=250, orient="horizontal", label="Moteur droit")
+        left_scale.pack(fill="x", padx=10)
+        right_scale.pack(fill="x", padx=10)
+
+        auto_running = {"active": True}
+
+        def send_cmd():
+            if not boat.motors:
+                return
+            left = float(left_scale.get())
+            right = float(right_scale.get())
+
+            def worker():
+                boat.motors.drive_lr(left, right, seconds=0.2, rate_hz=10.0)
+
+            threading.Thread(target=worker, daemon=True).start()
+
+        def auto_loop():
+            if not dialog.winfo_exists() or not auto_running["active"]:
+                return
+            if armed_var.get():
+                send_cmd()
+            dialog.after(1000, auto_loop)
+
+        auto_loop()
+
+        def on_close():
+            auto_running["active"] = False
+            if boat.motors:
+                boat.motors.stop_motors()
+            dialog.destroy()
+
+        dialog.protocol("WM_DELETE_WINDOW", on_close)
+        sync_armed()
     
     def emergency_stop(self):
         """Arrêt d'urgence de tous les bateaux"""
