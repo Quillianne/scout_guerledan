@@ -60,6 +60,16 @@ def cmd_gotohome(mav, nav):
     print(f"Returning Home…")
     nav.return_home()
 
+def cmd_get_mode(mav):
+    mode_info = mav.get_flight_mode()
+    if not mode_info:
+        print("Mode non disponible.")
+    else:
+        print(f"Mode: {mode_info['mode']}, Armed: {mode_info['armed']}")
+
+def cmd_set_mode(mav, mode_id=None, mode_name=None):
+    print("Set mode:", mav.set_flight_mode(mode_id=mode_id, mode_name=mode_name))
+
 def main():
     ap = argparse.ArgumentParser(description="Tester utils/bblib.py (BlueOS mavlink2rest)")
     ap.add_argument("--id", type=int, help="ID du bateau (charge host/port/sysid/compid depuis la config)")
@@ -93,6 +103,11 @@ def main():
     p_head.add_argument("--secs", type=float, default=5.0)
 
     sub.add_parser("home")
+
+    sub.add_parser("mode")
+    p_set_mode = sub.add_parser("set_mode")
+    p_set_mode.add_argument("--mode-id", type=int, help="ID du mode (Rover)")
+    p_set_mode.add_argument("--mode", help="Nom du mode (ex: MANUAL, GUIDED, RTL)")
 
     args = ap.parse_args()
     if args.id is not None:
@@ -128,6 +143,10 @@ def main():
         cmd_head(mav, nav, args.heading, args.secs)
     elif args.cmd == "home":
         cmd_gotohome(mav, nav)
+    elif args.cmd == "mode":
+        cmd_get_mode(mav)
+    elif args.cmd == "set_mode":
+        cmd_set_mode(mav, mode_id=args.mode_id, mode_name=args.mode)
 
 if __name__ == "__main__":
     # ATTENTION: les commandes 'drive' et 'head' font bouger le bateau.
