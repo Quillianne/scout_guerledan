@@ -27,9 +27,10 @@ from utils.vibes_display import VibesDisplay
 # Constant uncertainties 
 # ----------------------------------------------------------------------------
 
-INIT_UNCERTAINTY = 1.0
+
+INIT_UNCERTAINTY = 0.
 GPS_UNCERTAINTY = 0.
-DIST_UNCERTAINTY = 0.25
+DIST_UNCERTAINTY = 0.1
 MOVE_UNCERTAINTY = 0.25
 
 #INIT_UNCERTAINTY = 1.0
@@ -99,7 +100,7 @@ def parse_log_line(line: str):
         return None
 
 
-def run_replay(log_path: str, speed: float, only_plot: bool = False):
+def run_replay(log_path: str, speed: float, only_plot: bool = False, downsample: int = 1):
     entries = []
     with open(log_path, "r", encoding="utf-8") as f:
         for line in f:
@@ -110,6 +111,12 @@ def run_replay(log_path: str, speed: float, only_plot: bool = False):
     if not entries:
         print("Aucune entrée valide dans le fichier de replay.")
         return
+
+    if downsample and downsample > 1:
+        entries = entries[::downsample]
+        if not entries:
+            print("Aucune entrée après downsample.")
+            return
 
     # Initialisation des contractors et de l'affichage VIBes
     _ts, coords1, coords2, coords3 = entries[0]
@@ -270,18 +277,47 @@ def run_live():
     # ------------------------------------------------------------------
     # Boucle principale d'affichage
     # ------------------------------------------------------------------
-    def logging_thread():
-        while True:
-            # Log the data
-            logging.info(f"Boat 1: {coords1}, Boat 2: {coords2}, Boat 3: {coords3}")
-            time.sleep(1.0)  # Adjust logging frequency as needed
+    data_lock = threading.Lock()
+    latest_coords = {"c1": coords1, "c2": coords2, "c3": coords3}
 
-    def display_thread():
+    def logging_thread():
+        period = 1.0
+        next_time = time.monotonic()
         while True:
-            # Récupération des données en coordonnées cartésiennes
+            t0 = time.monotonic()
             new_coords1 = gps1.get_coords()
             new_coords2 = gps2.get_coords()
             new_coords3 = gps3.get_coords()
+
+            with data_lock:
+                if new_coords1[0] is not None and new_coords1[1] is not None:
+                    latest_coords["c1"] = new_coords1
+                if new_coords2[0] is not None and new_coords2[1] is not None:
+                    latest_coords["c2"] = new_coords2
+                if new_coords3[0] is not None and new_coords3[1] is not None:
+                    latest_coords["c3"] = new_coords3
+
+                c1 = latest_coords["c1"]
+                c2 = latest_coords["c2"]
+                c3 = latest_coords["c3"]
+
+            logging.info(f"Boat 1: {c1}, Boat 2: {c2}, Boat 3: {c3}")
+
+            next_time += period
+            sleep_time = next_time - time.monotonic()
+            if sleep_time > 0:
+                time.sleep(sleep_time)
+            else:
+                next_time = time.monotonic()
+
+    def display_thread():
+        period = 5.0
+        next_time = time.monotonic()
+        while True:
+            with data_lock:
+                new_coords1 = latest_coords["c1"]
+                new_coords2 = latest_coords["c2"]
+                new_coords3 = latest_coords["c3"]
 
             # Handle None case for Boat 1
             if new_coords1[0] is not None and new_coords1[1] is not None:
@@ -348,7 +384,12 @@ def run_live():
             display.draw()
 
             # Attente avant la prochaine mise à jour
-            time.sleep(5.0)
+            next_time += period
+            sleep_time = next_time - time.monotonic()
+            if sleep_time > 0:
+                time.sleep(sleep_time)
+            else:
+                next_time = time.monotonic()
 
     # Start threads
     logging_thread = threading.Thread(target=logging_thread, daemon=True)
@@ -378,10 +419,11 @@ def main():
     ap.add_argument("--replay", help="Fichier de log à rejouer")
     ap.add_argument("--speed", type=float, default=1.0, help="Vitesse de replay (ex: 2 = x2)")
     ap.add_argument("--only-plot", action="store_true", help="Mode replay sans VIBes, plot uniquement")
+    ap.add_argument("--downsample", type=int, default=1, help="Downsample (ex: 2 = 1 point sur 2)")
     args = ap.parse_args()
 
     if args.replay:
-        run_replay(args.replay, args.speed, only_plot=args.only_plot)
+        run_replay(args.replay, args.speed, only_plot=args.only_plot, downsample=args.downsample)
     else:
         run_live()
 
