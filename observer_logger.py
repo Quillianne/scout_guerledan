@@ -31,7 +31,7 @@ from utils.vibes_display import VibesDisplay
 INIT_UNCERTAINTY = 0.
 GPS_UNCERTAINTY = 0.
 DIST_UNCERTAINTY = 0.1
-MOVE_UNCERTAINTY = 0.25
+MOVE_UNCERTAINTY = 0.8
 
 #INIT_UNCERTAINTY = 1.0
 #GPS_UNCERTAINTY = 1.0
@@ -55,7 +55,7 @@ def box_size_str(box: IntervalVector) -> str:
 
 def setup_logging():
     """Configure logging files for live mode only."""
-    log_dir = "log"
+    log_dir = "logs"
     log_latest = "test_observer.log"
 
     os.makedirs(log_dir, exist_ok=True)
@@ -313,32 +313,19 @@ def run_live():
     def display_thread():
         period = 5.0
         next_time = time.monotonic()
+        with data_lock:
+            prev_coords1 = latest_coords["c1"]
+            prev_coords2 = latest_coords["c2"]
+            prev_coords3 = latest_coords["c3"]
         while True:
             with data_lock:
                 new_coords1 = latest_coords["c1"]
                 new_coords2 = latest_coords["c2"]
                 new_coords3 = latest_coords["c3"]
 
-            # Handle None case for Boat 1
-            if new_coords1[0] is not None and new_coords1[1] is not None:
-                prev_coords1 = coords1
-                coords1 = new_coords1
-            else:
-                prev_coords1 = coords1
-
-            # Handle None case for Boat 2
-            if new_coords2[0] is not None and new_coords2[1] is not None:
-                prev_coords2 = coords2
-                coords2 = new_coords2
-            else:
-                prev_coords2 = coords2
-
-            # Handle None case for Boat 3
-            if new_coords3[0] is not None and new_coords3[1] is not None:
-                prev_coords3 = coords3
-                coords3 = new_coords3
-            else:
-                prev_coords3 = coords3
+            coords1 = new_coords1 if new_coords1[0] is not None and new_coords1[1] is not None else prev_coords1
+            coords2 = new_coords2 if new_coords2[0] is not None and new_coords2[1] is not None else prev_coords2
+            coords3 = new_coords3 if new_coords3[0] is not None and new_coords3[1] is not None else prev_coords3
 
             # Dead reckoning (mouvement)
             dx1 = coords1[0] - prev_coords1[0]
@@ -382,6 +369,8 @@ def run_live():
             # Affichage des pavages avec VIBes
             display.set_truth_positions([coords1, coords2, coords3])
             display.draw()
+
+            prev_coords1, prev_coords2, prev_coords3 = coords1, coords2, coords3
 
             # Attente avant la prochaine mise à jour
             next_time += period
