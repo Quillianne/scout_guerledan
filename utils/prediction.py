@@ -6,7 +6,7 @@ Equivalent contractor utilities for positioning.
 - Dead-reckoning via CtcInverse on backward motion model
 """
 
-from codac import AnalyticFunction, CtcInverse, CtcWrapper, Interval, IntervalVector, VectorVar, cos, sin, sqrt, sqr, vec
+from codac import AnalyticFunction, CtcInverse, CtcWrapper, Interval, IntervalVector, VectorVar, CtcFixpoint, PavingOut, cos, sin, sqrt, sqr, vec, pave
 
 
 def create_distance_contractor(neighbor_box, dist_interval):
@@ -29,8 +29,13 @@ class equivalent_contractor:
     Contracteur équivalent pour le positionnement.
 
     - add_distance_condition: contraction par distance
+    - add_double_distance_condition: contraction par deux distances vers deux voisins
     - add_gps_condition: intersection avec une boîte GPS
     - add_movement_condition: dead reckoning via CtcInverse (f_back)
+    - get_box: retourne la boîte contractée
+    - get_ctc: retourne le contracteur courant
+    - set_ctc: met à jour le contracteur avec une boîte enveloppée
+    - contract: contracte une boîte avec le contracteur courant
     """
 
     def __init__(self, initial_box):
@@ -48,6 +53,13 @@ class equivalent_contractor:
         ctc_dist = create_distance_contractor(neighbor_box, dist_interval)
         self.ctc = self.ctc & ctc_dist
 
+    def add_double_distance_condition(self, dist_interval_1, neighbor_box_1, dist_interval_2, neighbor_box_2):
+        ctc_dist_1 = create_distance_contractor(neighbor_box_1, dist_interval_1)
+        ctc_dist_2 = create_distance_contractor(neighbor_box_2, dist_interval_2)
+        ctc_dist = CtcFixpoint(ctc_dist_1 & ctc_dist_2)
+
+        self.ctc = self.ctc & ctc_dist
+
     def add_gps_condition(self, gps_box):
         """
         Intersection avec la mesure GPS (boîte).
@@ -61,11 +73,29 @@ class equivalent_contractor:
     def add_movement_condition(self, dx_interval, dy_interval):
         """
         Mise à jour par dead reckoning via CtcInverse.
-
+        Il y a un chainage récursif des contracteurs.
         Args:
             dx_interval: Interval (déplacement en x)
             dy_interval: Interval (déplacement en y)
         """
+        dx = Interval(dx_interval)
+        dy = Interval(dy_interval)
+
+        dx2 = Interval(dx_interval)
+        dy2 = Interval(dy_interval)
+
+        self.box[0] = self.box[0] + dx2.inflate(1.0)
+        self.box[1] = self.box[1] + dy2.inflate(1.0)
+
+        x = VectorVar(2)
+        f_back = AnalyticFunction([x], vec(x[0] - dx, x[1] - dy))
+        self.ctc = CtcInverse(f_back, self.ctc)
+
+    def add_movement_condition_non_recursive(self, dx_interval, dy_interval):
+        """
+        Pas encore fonctionnel. L'idée est d'utiliser un pavage en antécedent plutot qu'un Ctc. Cela casse la récursivité.
+        """
+
         dx = Interval(dx_interval)
         dy = Interval(dy_interval)
 
@@ -74,7 +104,13 @@ class equivalent_contractor:
 
         x = VectorVar(2)
         f_back = AnalyticFunction([x], vec(x[0] - dx, x[1] - dy))
-        self.ctc = CtcInverse(f_back, self.ctc)
+        
+        #print(self.paving.boxes(PavingOut.outer))
+        #self.ctc = CtcInverse(f_back, CtcWrapper(self.paving))
+
+    
+        
+
 
     def get_box(self):
         """Retourne la boîte contractée et met à jour self.box."""

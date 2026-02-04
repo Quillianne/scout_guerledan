@@ -91,12 +91,44 @@ class MavlinkLink:
             "target_system": self.sysid, "target_component": self.compid, "confirmation": 0
         })
     
-    def set_mode_manual(self):
+    def set_flight_mode(self, mode_id=None, mode_name=None):
+        """Set flight mode by id or name (Rover modes)."""
+        rover_modes = {
+            0: "MANUAL",
+            1: "ACRO",
+            3: "STEERING",
+            4: "HOLD",
+            5: "LOITER",
+            6: "FOLLOW",
+            7: "SIMPLE",
+            8: "AUTO",
+            9: "RTL",
+            10: "SMART_RTL",
+            11: "GUIDED",
+            12: "INITIALISING",
+            15: "AUTO_ZIGZAG",
+            16: "AUTOTUNE",
+            17: "AUTO_RTGS",
+            18: "BRAKE",
+        }
+
+        if mode_id is None and mode_name is None:
+            raise ValueError("mode_id ou mode_name requis")
+
+        if mode_id is None:
+            name = str(mode_name).strip().upper()
+            inv = {v: k for k, v in rover_modes.items()}
+            if name not in inv:
+                raise ValueError(f"Mode inconnu: {mode_name}")
+            mode_id = inv[name]
+
         body = {
-            "type": "SET_MODE",
-            "target_system": self.sysid,
-            "base_mode": {"bits": 1},  # MAV_MODE_FLAG_CUSTOM_MODE_ENABLED
-            "custom_mode": 0           # Rover: MANUAL
+            "type": "COMMAND_LONG",
+            "command": {"type": "MAV_CMD_DO_SET_MODE"},
+            "param1": 1,  # MAV_MODE_FLAG_CUSTOM_MODE_ENABLED
+            "param2": int(mode_id),
+            "param3": 0, "param4": 0, "param5": 0, "param6": 0, "param7": 0,
+            "target_system": self.sysid, "target_component": self.compid, "confirmation": 0
         }
         return self.post_message(body)
 

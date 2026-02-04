@@ -6,7 +6,7 @@ from utils.settings import KP, DT, MAX_CMD, BASE_SPEED_MULTIPLIER
 
 from utils.bblib import (
     MavlinkLink, IMU, GPS,
-    MotorDriver, Navigation, init_blueboat
+    MotorDriver, Navigation, init_blueboat, BlueBoatConfig
 )
 
 
@@ -37,7 +37,7 @@ def cmd_neutral(motors):
 
 def cmd_drive(mav, motors, left, right, secs, rate):
     # sécurité minimale
-    # print("Setting manual mode…"); print(mav.set_mode_manual())
+    # print("Setting manual mode…"); print(mav.set_flight_mode(mode_name="MANUAL"))
     print("Arming…"); print(mav.arm_disarm(True))
     print(f"Drive LR: left={left}, right={right}, secs={secs}, rate={rate} Hz")
     info = motors.drive_lr(left, right, seconds=secs, rate_hz=rate)
@@ -47,7 +47,7 @@ def cmd_drive(mav, motors, left, right, secs, rate):
           f"t={info['throttle_norm']:.2f}, s={info['steering_norm']:.2f}")
 
 def cmd_head(mav, nav, heading, secs):
-    # print("Setting manual mode…"); print(mav.set_mode_manual())
+    # print("Setting manual mode…"); print(mav.set_flight_mode(mode_name="MANUAL"))
     print("Arming…"); print(mav.arm_disarm(True))
     print(f"Follow heading {heading}° for {secs}s (max_speed={nav.max_speed:.1f})")
     nav.follow_heading(target_heading_deg=heading, duration_s=secs)
@@ -55,13 +55,14 @@ def cmd_head(mav, nav, heading, secs):
     print("Disarming…"); print(mav.arm_disarm(False))
 
 def cmd_gotohome(mav, nav):
-    # print("Setting manual mode…"); print(mav.set_mode_manual())
+    # print("Setting manual mode…"); print(mav.set_flight_mode(mode_name="MANUAL"))
     print("Arming…"); print(mav.arm_disarm(True))
     print(f"Returning Home…")
     nav.return_home()
 
 def main():
     ap = argparse.ArgumentParser(description="Tester utils/bblib.py (BlueOS mavlink2rest)")
+    ap.add_argument("--id", type=int, help="ID du bateau (charge host/port/sysid/compid depuis la config)")
     ap.add_argument("--host", default="192.168.2.202")
     ap.add_argument("--port", type=int, default=6040)
     ap.add_argument("--sysid", type=int, default=2)
@@ -94,7 +95,22 @@ def main():
     sub.add_parser("home")
 
     args = ap.parse_args()
-    mav, imu, gps, motors, nav = init_blueboat(args.host, args.port, args.sysid, args.compid, args.maxcmd, args.dt, args.kp, args.speed)
+    if args.id is not None:
+        cfg = BlueBoatConfig()
+        item = cfg.get_boat(args.id)
+        if item is None:
+            raise ValueError(f"Boat id {args.id} introuvable dans la config")
+        host = item.get("host", args.host)
+        port = item.get("port", args.port)
+        sysid = item.get("sysid", args.id)
+        compid = item.get("compid", args.compid)
+    else:
+        host = args.host
+        port = args.port
+        sysid = args.sysid
+        compid = args.compid
+
+    mav, imu, gps, motors, nav = init_blueboat(host, port, sysid, compid, args.maxcmd, args.dt, args.kp, args.speed)
 
     if args.cmd == "imu":
         cmd_imu(imu)
