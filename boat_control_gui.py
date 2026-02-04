@@ -616,6 +616,9 @@ class BoatControlGUI:
         row2 = tk.Frame(controls_frame, bg="#ecf0f1")
         row2.pack(fill="x")
 
+        row3 = tk.Frame(controls_frame, bg="#ecf0f1")
+        row3.pack(fill="x", pady=(4, 0))
+
         arm_btn = tk.Button(row1, text="Armer", 
                    command=lambda: self.arm_boat(boat.boat_id),
                    font=("Arial", 9), bg="#27ae60", fg="black")
@@ -635,6 +638,16 @@ class BoatControlGUI:
                    command=lambda: self.stop_boat(boat.boat_id),
                    font=("Arial", 9), bg="#e74c3c", fg="black")
         stop_btn.pack(side="left", padx=2, fill="x", expand=True)
+
+        manual_btn = tk.Button(row3, text="Manual", 
+                 command=lambda: self.set_mode_boat(boat.boat_id, "MANUAL"),
+                 font=("Arial", 9), bg="#7f8c8d", fg="black")
+        manual_btn.pack(side="left", padx=2, fill="x", expand=True)
+
+        hold_btn = tk.Button(row3, text="Hold", 
+               command=lambda: self.set_mode_boat(boat.boat_id, "HOLD"),
+               font=("Arial", 9), bg="#95a5a6", fg="black")
+        hold_btn.pack(side="left", padx=2, fill="x", expand=True)
         
         # Indicateur d'état retour maison
         boat.home_status_label = tk.Label(controls_frame, text="", 
@@ -802,6 +815,18 @@ class BoatControlGUI:
             messagebox.showinfo("Info", f"Bateau {boat_id} arrêté")
         else:
             messagebox.showerror("Erreur", f"Bateau {boat_id} non trouvé")
+
+    def set_mode_boat(self, boat_id, mode_name):
+        """Change le mode de vol d'un bateau"""
+        boat = self.boats.get(boat_id)
+        if boat and boat.connected and boat.mav:
+            result = boat.mav.set_flight_mode(mode_name=mode_name)
+            if result is None:
+                messagebox.showerror("Erreur", f"Impossible de changer le mode du bateau {boat_id}")
+            else:
+                messagebox.showinfo("Info", f"Mode {mode_name} demandé pour le bateau {boat_id}")
+        else:
+            messagebox.showerror("Erreur", f"Bateau {boat_id} non connecté")
     
     def emergency_stop(self):
         """Arrêt d'urgence de tous les bateaux"""
