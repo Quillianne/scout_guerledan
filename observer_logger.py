@@ -2,7 +2,7 @@
 Test de l'observateur par intervalles avec 3 bateaux
 
 Ce script initialise 3 bateaux et les laisse à l'arrêt.
-Ils seront contrôlés à la manette via QGroundControl (MavLink).
+Ils seront contrôlés à la télécommande RC.
 On utilise ensuite vibes_display.py pour estimer leur positions avec des intervalles.
 """
 
@@ -16,6 +16,7 @@ import os
 import matplotlib.pyplot as plt
 from datetime import datetime
 from codac import Interval, IntervalVector
+import threading
 
 from utils.bblib import BlueBoatConfig
 from utils.prediction import equivalent_contractor
@@ -220,17 +221,14 @@ def run_live():
     # Initialize boats using the configuration
     print("\n[Bateau 1] Initialisation via configuration...")
     mav1, imu1, gps1, motors1, nav1 = config.init_from_config(boat_id=1)
-    motors1.stop_motors()
     print("[Bateau 1] ✓ Initialisé")
 
     print("\n[Bateau 2] Initialisation via configuration...")
     mav2, imu2, gps2, motors2, nav2 = config.init_from_config(boat_id=2)
-    motors2.stop_motors()
     print("[Bateau 2] ✓ Initialisé")
 
     print("\n[Bateau 3] Initialisation via configuration...")
     mav3, imu3, gps3, motors3, nav3 = config.init_from_config(boat_id=3)
-    motors3.stop_motors()
     print("[Bateau 3] ✓ Initialisé")
 
     print("\n" + "=" * 60)
@@ -272,7 +270,13 @@ def run_live():
     # ------------------------------------------------------------------
     # Boucle principale d'affichage
     # ------------------------------------------------------------------
-    try:
+    def logging_thread():
+        while True:
+            # Log the data
+            logging.info(f"Boat 1: {coords1}, Boat 2: {coords2}, Boat 3: {coords3}")
+            time.sleep(1.0)  # Adjust logging frequency as needed
+
+    def display_thread():
         while True:
             # Récupération des données en coordonnées cartésiennes
             new_coords1 = gps1.get_coords()
@@ -299,9 +303,6 @@ def run_live():
                 coords3 = new_coords3
             else:
                 prev_coords3 = coords3
-
-            # Log the data
-            logging.info(f"Boat 1: {coords1}, Boat 2: {coords2}, Boat 3: {coords3}")
 
             # Dead reckoning (mouvement)
             dx1 = coords1[0] - prev_coords1[0]
@@ -349,6 +350,17 @@ def run_live():
             # Attente avant la prochaine mise à jour
             time.sleep(5.0)
 
+    # Start threads
+    logging_thread = threading.Thread(target=logging_thread, daemon=True)
+    display_thread = threading.Thread(target=display_thread, daemon=True)
+
+    logging_thread.start()
+    display_thread.start()
+
+    # Keep the main thread alive
+    try:
+        while True:
+            time.sleep(1.0)
     except KeyboardInterrupt:
         print("\n[Main] Interruption utilisateur détectée. Données sauvegardées dans 'boat_data.log'.")
 
