@@ -2,6 +2,7 @@
 .venv
 venv/
 */__pycache__/
+**/__pycache__/
 *.pyc
 build/
 .vscode/
@@ -9,3 +10,4 @@ blueboat_rtt_cpp/
 VIBes-viewer
 *.log
 boat_control_config.json
+beautiful_replay/db.sqlite3

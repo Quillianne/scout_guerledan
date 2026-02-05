@@ -157,6 +157,18 @@ Simulation de flotte + affichage VIBes-viewer (Codac) :
 python test_display.py
 ```
 
+#### 5. Beautiful Replay (Django)
+Interface web pour rejouer un log avec carte, contrôles de lecture, et affichage des boîtes/pavages.
+
+Depuis le dossier [beautiful_replay/](beautiful_replay) :
+```bash
+python manage.py migrate  # uniquement la première fois
+python manage.py runserver
+```
+Puis ouvrir http://127.0.0.1:8000
+
+Le bouton “Visualiser” ouvre le lecteur. “Changer de log” ré-affiche la fenêtre de configuration (log, downsample, incertitudes, mode récursif).
+
 
 ## Structure du projet
 
@@ -175,6 +187,9 @@ Modules utilitaires pour la communication et la gestion des bateaux.
 
 #### [`logs/`](logs/)
 Logs des missions (celles avec observation par intervalles). Ils sont ordonnés par date et heure.
+
+#### [`beautiful_replay/`](beautiful_replay/)
+Application Django de replay visuel (carte, lecture/pause/vitesse, boîtes et pavages via `FleetPredictor`).
 
 #### [`figures/`](figures/)
 
