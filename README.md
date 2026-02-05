@@ -1,10 +1,12 @@
-![LOGO](figures/Logo_Scout.png)
+![LOGO](figures/Logo_Scout2.png)
 
 # Scout Guerlédan - Projet de navigation autonome multi-bateaux
 
 ## Présentation du projet
 
-Ce projet vise à développer un système de contrôle et de navigation pour une flotte de bateaux autonomes (BlueBoat) évoluant sur le lac de Guerlédan. Le système permet de coordonner plusieurs scouts en formation, avec un bateau principal (MotherShip) et des bateaux suiveurs (ScoutA, ScoutB) qui maintiennent une formation géométrique (triangle équilatéral).
+Ce projet vise à développer un système de contrôle et de navigation pour une flotte de bateaux autonomes (BlueBoat) évoluant sur le lac de Guerlédan. L'objectif est d'avoir deux drones autonomes qui gardent une formation en amont de la trajectoire d'un bateau principal (MotherShip) qui peut être un cargo ou un bateau de transport de passagers. Ces Éclaireurs (scouts) doivent communiquer les potentiels obstacles détectés sur la trajectoire du MotherShip. Ils se localisent en utilisant uniquement les informations de distance relative obtenues via des modems acoustiques sous-marins. Le système permet de coordonner plusieurs scouts en formation, avec un bateau principal (MotherShip) et des bateaux éclaireurs (ScoutA, ScoutB) qui maintiennent une formation géométrique (triangle équilatéral).  
+
+Sujet : https://drive.google.com/file/d/1p-A25QEF_PYn95kglMKq6S-8n0ijE0sL/view
 
 **Objectifs principaux :**
 
