@@ -6,7 +6,7 @@ Displays:
 - Current enclosing boxes
 """
 
-from codac import Color, Figure2D, GraphicOutput, Interval, IntervalVector, axis
+from codac import Color, Figure2D, GraphicOutput, Interval, IntervalVector, axis, PavingOut
 
 
 def compute_contractor_paving(ctc, search_box: IntervalVector, precision: float = 0.3) -> list:
@@ -66,6 +66,7 @@ class VibesDisplay:
         min_width: float = 40.0,
         min_height: float = 40.0,
         truth_box_size: float = 0.5,
+        use_paving_objects: bool = False,
     ):
         self.contractors = [ctc_a, ctc_b, ctc_c]
         self.precision = precision
@@ -73,6 +74,7 @@ class VibesDisplay:
         self.min_width = min_width
         self.min_height = min_height
         self.truth_box_size = truth_box_size
+        self.use_paving_objects = use_paving_objects
         self.fig = Figure2D("Prediction (Contractors)", GraphicOutput.VIBES)
         self.colors = [Color.red(), Color.blue(), Color.green()]
         self._view_box = None
@@ -145,12 +147,18 @@ class VibesDisplay:
             box = eq.get_box()
             all_boxes.append(box)
 
-            paving_box = IntervalVector([
-                [box[0].lb() - self.margin, box[0].ub() + self.margin],
-                [box[1].lb() - self.margin, box[1].ub() + self.margin]
-            ])
+            if self.use_paving_objects and hasattr(eq, "paving") and eq.paving is not None:
+                try:
+                    pavings.append(eq.paving.boxes(PavingOut.outer))
+                except Exception:
+                    pavings.append([])
+            else:
+                paving_box = IntervalVector([
+                    [box[0].lb() - self.margin, box[0].ub() + self.margin],
+                    [box[1].lb() - self.margin, box[1].ub() + self.margin]
+                ])
 
-            pavings.append(compute_contractor_paving(eq.get_ctc(), paving_box, self.precision))
+                pavings.append(compute_contractor_paving(eq.get_ctc(), paving_box, self.precision))
 
         if all_boxes:
             hull = IntervalVector(all_boxes[0])

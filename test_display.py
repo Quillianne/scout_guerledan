@@ -5,9 +5,8 @@ Test simulation with three fake boats in triangle
 import math
 import time
 import matplotlib.pyplot as plt
-from codac import Interval, IntervalVector
-from utils.prediction import equivalent_contractor
-from utils.vibes_display import VibesDisplay
+from codac import Interval
+from utils.fleet_prediction import FleetPredictor
 
 # ----------------------------------------------------------------------------
 # Parameters
@@ -17,6 +16,7 @@ UPDATE_REAL_INTERVAL = 2.0
 UPDATE_STEPS = int(UPDATE_REAL_INTERVAL / DT)
 DO_ESCAPE = True
 PLOT_BOX_SIZES = True
+RECURSIVE_CONTRACTION = False
 
 SPEED = 1.0
 MOVE_UNCERTAINTY = 0.5
@@ -58,12 +58,15 @@ def main():
     old_p2 = list(p2)
     old_p3 = list(p3)
 
-    # Equivalent contractors
-    c1 = equivalent_contractor(make_init_box(p1[0], p1[1]))
-    c2 = equivalent_contractor(make_init_box(p2[0], p2[1]))
-    c3 = equivalent_contractor(make_init_box(p3[0], p3[1]))
-
-    display = VibesDisplay(c1, c2, c3, precision=1., margin=10.0)
+    fleet = FleetPredictor(
+        initial_positions=[p1, p2, p3],
+        recursive=RECURSIVE_CONTRACTION,
+        gps_uncertainty=GPS_UNCERTAINTY,
+        dist_uncertainty=DIST_UNCERTAINTY,
+        move_uncertainty=MOVE_UNCERTAINTY,
+        precision=1.0,
+        margin=10.0,
+    )
 
     start_maneuver_step = -9999
     escape3_start_step = start_maneuver_step
@@ -93,8 +96,9 @@ def main():
         p3[0] += dx
 
         current_step = (t-1) // UPDATE_STEPS
-        box2_size = max(c2.get_box()[0].diam(), c2.get_box()[1].diam())
-        box3_size = max(c3.get_box()[0].diam(), c3.get_box()[1].diam())
+        boxes = fleet.get_boxes()
+        box2_size = max(boxes[1][0].diam(), boxes[1][1].diam())
+        box3_size = max(boxes[2][0].diam(), boxes[2][1].diam())
         # print(f"Step {current_step}: box 2 size: {box2_size:.2f}, box 3 size: {box3_size:.2f}")
 
         if (
@@ -157,7 +161,6 @@ def main():
 
         if is_update_step:
             update_start = time.perf_counter()
-            # print(f"--- Time {t*DT:.2f} s ---")
             # Movement update (dead reckoning)
             dx1 = p1[0] - old_p1[0]
             dy1 = p1[1] - old_p1[1]
@@ -166,83 +169,56 @@ def main():
             dx3 = p3[0] - old_p3[0]
             dy3 = p3[1] - old_p3[1]
 
-            c1.add_movement_condition(
-                Interval(dx1).inflate(MOVE_UNCERTAINTY),
-                Interval(dy1).inflate(MOVE_UNCERTAINTY)
-            )
-            c2.add_movement_condition(
-                Interval(dx2).inflate(MOVE_UNCERTAINTY),
-                Interval(dy2).inflate(MOVE_UNCERTAINTY)
-            )
-            c3.add_movement_condition(
-                Interval(dx3).inflate(MOVE_UNCERTAINTY),
-                Interval(dy3).inflate(MOVE_UNCERTAINTY)
-            )
-
             old_p1 = list(p1)
             old_p2 = list(p2)
             old_p3 = list(p3)
 
-            # GPS update for one boat (c1)
-            gps_box = IntervalVector([p1[0], p1[1]]).inflate(GPS_UNCERTAINTY)
-            c1.add_gps_condition(gps_box)
-
             # Distance constraints
-            d12 = Interval(true_distance(p1, p2)).inflate(DIST_UNCERTAINTY)
-            d13 = Interval(true_distance(p1, p3)).inflate(DIST_UNCERTAINTY)
-            d23 = Interval(true_distance(p2, p3)).inflate(DIST_UNCERTAINTY)
+            d12 = true_distance(p1, p2)
+            d13 = true_distance(p1, p3)
+            d23 = true_distance(p2, p3)
 
-            #c1.add_distance_condition(d12, c2.get_box())
-            #c1.add_distance_condition(d13, c3.get_box())
-            c1.add_double_distance_condition(d12, c2.get_box(), d13, c3.get_box())
-
-            #c2.add_distance_condition(d12, c1.get_box())
-            #c2.add_distance_condition(d23, c3.get_box())
-            c2.add_double_distance_condition(d12, c1.get_box(), d23, c3.get_box())
-
-            #c3.add_distance_condition(d13, c1.get_box())
-            #c3.add_distance_condition(d23, c2.get_box())
-            c3.add_double_distance_condition(d13, c1.get_box(), d23, c2.get_box())
+            fleet.update(
+                mothership_pos=p1,
+                distances=[d12, d23, d13],
+                movements=[(dx1, dy1), (dx2, dy2), (dx3, dy3)],
+            )
 
 
             if current_step == escape3_start_step:
-                box2 = c2.get_box()
-                box3 = c3.get_box()
+                boxes = fleet.get_boxes()
+                box2 = boxes[1]
+                box3 = boxes[2]
                 print(f"STEP {current_step} // Manoeuver start: box 2: {box_size_str(box2)}, box 3: {box_size_str(box3)}")
                 current_span_start = current_step
 
             if current_step == escape2_start_step:
-                box2 = c2.get_box()
-                box3 = c3.get_box()
+                boxes = fleet.get_boxes()
+                box2 = boxes[1]
+                box3 = boxes[2]
                 # print(f"STEP {current_step} // Manoeuver start: box 2: {box_size_str(box2)}, box 3: {box_size_str(box3)}")
                 boat2_starts.append(current_step)
 
             if current_step == escape2_end_step:
-                box2 = c2.get_box()
-                box3 = c3.get_box()
+                boxes = fleet.get_boxes()
+                box2 = boxes[1]
+                box3 = boxes[2]
                 print(f"STEP {current_step} // Manoeuver end: box 2: {box_size_str(box2)}, box 3: {box_size_str(box3)}")
                 if current_span_start is not None:
                     global_spans.append((current_span_start, current_step))
                     current_span_start = None
-            # End of escape maneuver: reset ctc from its equivalent box
-            if current_step == start_maneuver_step + 10:
-                c3.set_ctc(c3.get_box())
 
-            if current_step == start_maneuver_step + 17:
-                c2.set_ctc(c2.get_box())
-                c1.set_ctc(c1.get_box())
             
             update_before_draw = time.perf_counter()
             # Draw pavings in VIBes
-            display.set_truth_positions([p1, p2, p3])
-            display.draw()
+            fleet.draw([p1, p2, p3])
             update_end = time.perf_counter()
 
             update_steps.append(current_step)
             update_compute_times.append(update_before_draw - update_start)
             update_draw_times.append(update_end - update_before_draw)
 
-        time.sleep(DT/5)
+        time.sleep(DT/1000)
 
     if PLOT_BOX_SIZES:
         plt.figure("Box sizes")

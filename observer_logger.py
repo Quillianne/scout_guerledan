@@ -15,12 +15,11 @@ import re
 import os
 import matplotlib.pyplot as plt
 from datetime import datetime
-from codac import Interval, IntervalVector
+from codac import Interval
 import threading
 
 from utils.bblib import BlueBoatConfig
-from utils.prediction import equivalent_contractor
-from utils.vibes_display import VibesDisplay
+from utils.fleet_prediction import FleetPredictor
 
 
 # ----------------------------------------------------------------------------
@@ -31,7 +30,7 @@ from utils.vibes_display import VibesDisplay
 INIT_UNCERTAINTY = 0.
 GPS_UNCERTAINTY = 0.
 DIST_UNCERTAINTY = 0.1
-MOVE_UNCERTAINTY = 0.8
+MOVE_UNCERTAINTY = 0.5
 
 #INIT_UNCERTAINTY = 1.0
 #GPS_UNCERTAINTY = 1.0
@@ -44,10 +43,6 @@ MOVE_UNCERTAINTY = 0.8
 
 def true_distance(p1, p2):
     return math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2)
-
-
-def make_init_box(x, y):
-    return IntervalVector([x, y]).inflate(INIT_UNCERTAINTY)
 
 
 def box_size_str(box: IntervalVector) -> str:
@@ -118,19 +113,20 @@ def run_replay(log_path: str, speed: float, only_plot: bool = False, downsample:
             print("Aucune entrée après downsample.")
             return
 
-    # Initialisation des contractors et de l'affichage VIBes
+    # Initialisation du fleet predictor et de l'affichage VIBes
     _ts, coords1, coords2, coords3 = entries[0]
-    box1 = make_init_box(coords1[0], coords1[1])
-    box2 = make_init_box(coords2[0], coords2[1])
-    box3 = make_init_box(coords3[0], coords3[1])
-
-    # print(coords1,coords2,coords3)
-
-    c1 = equivalent_contractor(box1)
-    c2 = equivalent_contractor(box2)
-    c3 = equivalent_contractor(box3)
-
-    display = None if only_plot else VibesDisplay(c1, c2, c3, precision=1.0, margin=10.0)
+    fleet = FleetPredictor(
+        initial_positions=[coords1, coords2, coords3],
+        recursive=False,
+        init_uncertainty=INIT_UNCERTAINTY,
+        gps_uncertainty=GPS_UNCERTAINTY,
+        dist_uncertainty=DIST_UNCERTAINTY,
+        move_uncertainty=MOVE_UNCERTAINTY,
+        precision=1.0,
+        margin=10.0,
+    )
+    if only_plot:
+        fleet.display = None
 
     prev_ts, prev_coords1, prev_coords2, prev_coords3 = entries[0]
     steps = []
@@ -149,50 +145,29 @@ def run_replay(log_path: str, speed: float, only_plot: bool = False, downsample:
             dx3 = coords3[0] - prev_coords3[0]
             dy3 = coords3[1] - prev_coords3[1]
 
-            c1.add_movement_condition(
-                Interval(dx1).inflate(MOVE_UNCERTAINTY),
-                Interval(dy1).inflate(MOVE_UNCERTAINTY),
-            )
-            c2.add_movement_condition(
-                Interval(dx2).inflate(MOVE_UNCERTAINTY),
-                Interval(dy2).inflate(MOVE_UNCERTAINTY),
-            )
-            c3.add_movement_condition(
-                Interval(dx3).inflate(MOVE_UNCERTAINTY),
-                Interval(dy3).inflate(MOVE_UNCERTAINTY),
+            d12 = true_distance(coords1, coords2)
+            d13 = true_distance(coords1, coords3)
+            d23 = true_distance(coords2, coords3)
+
+            fleet.update(
+                mothership_pos=coords1,
+                distances=[d12, d23, d13],
+                movements=[(dx1, dy1), (dx2, dy2), (dx3, dy3)],
             )
 
-            # GPS (uniquement bateau 1)
-            c1.add_gps_condition(IntervalVector([coords1[0], coords1[1]]).inflate(GPS_UNCERTAINTY))
-
-            # Contraintes de distance
-            d12 = Interval(true_distance(coords1, coords2)).inflate(DIST_UNCERTAINTY)
-            d13 = Interval(true_distance(coords1, coords3)).inflate(DIST_UNCERTAINTY)
-            d23 = Interval(true_distance(coords2, coords3)).inflate(DIST_UNCERTAINTY)
-
-            c1.add_distance_condition(d12, c2.get_box())
-            c1.add_distance_condition(d13, c3.get_box())
-
-            c2.add_distance_condition(d12, c1.get_box())
-            c2.add_distance_condition(d23, c3.get_box())
-
-            c3.add_distance_condition(d13, c1.get_box())
-            c3.add_distance_condition(d23, c2.get_box())
-
-            if display is not None:
-                display.set_truth_positions([coords1, coords2, coords3])
-                display.draw()
+            fleet.draw([coords1, coords2, coords3])
 
             steps.append(step_idx)
-            box1_sizes.append(max(c1.get_box()[0].diam(), c1.get_box()[1].diam()))
-            box2_sizes.append(max(c2.get_box()[0].diam(), c2.get_box()[1].diam()))
-            box3_sizes.append(max(c3.get_box()[0].diam(), c3.get_box()[1].diam()))
+            boxes = fleet.get_boxes()
+            box1_sizes.append(max(boxes[0][0].diam(), boxes[0][1].diam()))
+            box2_sizes.append(max(boxes[1][0].diam(), boxes[1][1].diam()))
+            box3_sizes.append(max(boxes[2][0].diam(), boxes[2][1].diam()))
             step_idx += 1
 
             dt = (ts - prev_ts).total_seconds()
             if speed <= 0:
                 speed = 1.0
-            if display is not None:
+            if fleet.display is not None:
                 time.sleep(max(0.0, dt / speed))
 
             prev_ts = ts
@@ -262,17 +237,18 @@ def run_live():
         time.sleep(0.5)
     
     # ------------------------------------------------------------------
-    # Initialisation des contractors et de l'affichage VIBes
+    # Initialisation du fleet predictor et de l'affichage VIBes
     # ------------------------------------------------------------------
-    box1 = make_init_box(coords1[0], coords1[1])
-    box2 = make_init_box(coords2[0], coords2[1])
-    box3 = make_init_box(coords3[0], coords3[1])
-
-    c1 = equivalent_contractor(box1)
-    c2 = equivalent_contractor(box2)
-    c3 = equivalent_contractor(box3)
-
-    display = VibesDisplay(c1, c2, c3, precision=1.0, margin=10.0)
+    fleet = FleetPredictor(
+        initial_positions=[coords1, coords2, coords3],
+        recursive=True,
+        init_uncertainty=INIT_UNCERTAINTY,
+        gps_uncertainty=GPS_UNCERTAINTY,
+        dist_uncertainty=DIST_UNCERTAINTY,
+        move_uncertainty=MOVE_UNCERTAINTY,
+        precision=1.0,
+        margin=10.0,
+    )
 
     # ------------------------------------------------------------------
     # Boucle principale d'affichage
@@ -335,40 +311,18 @@ def run_live():
             dx3 = coords3[0] - prev_coords3[0]
             dy3 = coords3[1] - prev_coords3[1]
 
-            c1.add_movement_condition(
-                Interval(dx1).inflate(MOVE_UNCERTAINTY),
-                Interval(dy1).inflate(MOVE_UNCERTAINTY),
+            d12 = true_distance(coords1, coords2)
+            d13 = true_distance(coords1, coords3)
+            d23 = true_distance(coords2, coords3)
+
+            fleet.update(
+                mothership_pos=coords1,
+                distances=[d12, d23, d13],
+                movements=[(dx1, dy1), (dx2, dy2), (dx3, dy3)],
             )
-            c2.add_movement_condition(
-                Interval(dx2).inflate(MOVE_UNCERTAINTY),
-                Interval(dy2).inflate(MOVE_UNCERTAINTY),
-            )
-            c3.add_movement_condition(
-                Interval(dx3).inflate(MOVE_UNCERTAINTY),
-                Interval(dy3).inflate(MOVE_UNCERTAINTY),
-            )
-
-            # GPS (uniquement bateau 1)
-            if new_coords1[0] is not None and new_coords1[1] is not None:
-                c1.add_gps_condition(IntervalVector([coords1[0], coords1[1]]).inflate(GPS_UNCERTAINTY))
-
-            # Contraintes de distance
-            d12 = Interval(true_distance(coords1, coords2)).inflate(DIST_UNCERTAINTY)
-            d13 = Interval(true_distance(coords1, coords3)).inflate(DIST_UNCERTAINTY)
-            d23 = Interval(true_distance(coords2, coords3)).inflate(DIST_UNCERTAINTY)
-
-            c1.add_distance_condition(d12, c2.get_box())
-            c1.add_distance_condition(d13, c3.get_box())
-
-            c2.add_distance_condition(d12, c1.get_box())
-            c2.add_distance_condition(d23, c3.get_box())
-
-            c3.add_distance_condition(d13, c1.get_box())
-            c3.add_distance_condition(d23, c2.get_box())
 
             # Affichage des pavages avec VIBes
-            display.set_truth_positions([coords1, coords2, coords3])
-            display.draw()
+            fleet.draw([coords1, coords2, coords3])
 
             prev_coords1, prev_coords2, prev_coords3 = coords1, coords2, coords3
 

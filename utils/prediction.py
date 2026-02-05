@@ -6,7 +6,7 @@ Equivalent contractor utilities for positioning.
 - Dead-reckoning via CtcInverse on backward motion model
 """
 
-from codac import AnalyticFunction, CtcInverse, CtcWrapper, Interval, IntervalVector, VectorVar, CtcFixpoint, PavingOut, cos, sin, sqrt, sqr, vec, pave
+from codac import AnalyticFunction, CtcInverse, CtcWrapper, CtcWrapper_PavingOut, Interval, IntervalVector, VectorVar, CtcFixpoint, PavingOut, cos, sin, sqrt, sqr, vec, pave
 
 
 def create_distance_contractor(neighbor_box, dist_interval):
@@ -41,6 +41,11 @@ class equivalent_contractor:
     def __init__(self, initial_box):
         self.box = IntervalVector(initial_box)
         self.ctc = CtcWrapper(self.box)
+        try:
+            self.paving = pave(self.box, self.ctc, 1.0)
+        except Exception:
+            self.box.inflate(1.0)
+            self.paving = pave(self.box, self.ctc, 1.0)
 
     def add_distance_condition(self, dist_interval, neighbor_box):
         """
@@ -53,12 +58,19 @@ class equivalent_contractor:
         ctc_dist = create_distance_contractor(neighbor_box, dist_interval)
         self.ctc = self.ctc & ctc_dist
 
-    def add_double_distance_condition(self, dist_interval_1, neighbor_box_1, dist_interval_2, neighbor_box_2):
+    def add_double_distance_condition(self, dist_interval_1, neighbor_box_1, dist_interval_2, neighbor_box_2, mode="fixpointdist"):
         ctc_dist_1 = create_distance_contractor(neighbor_box_1, dist_interval_1)
         ctc_dist_2 = create_distance_contractor(neighbor_box_2, dist_interval_2)
-        ctc_dist = CtcFixpoint(ctc_dist_1 & ctc_dist_2)
 
-        self.ctc = self.ctc & ctc_dist
+        if mode == "fixpointdist":
+            ctc_dist = CtcFixpoint(ctc_dist_1 & ctc_dist_2)
+        else:
+            ctc_dist = ctc_dist_1 & ctc_dist_2
+
+        if mode == "fixpointall":
+            self.ctc = CtcFixpoint(self.ctc & ctc_dist)
+        else:
+            self.ctc = self.ctc & ctc_dist
 
     def add_gps_condition(self, gps_box):
         """
@@ -67,6 +79,8 @@ class equivalent_contractor:
         Args:
             gps_box: IntervalVector
         """
+        if gps_box[0].diam() == 0 or gps_box[1].diam() == 0:
+            gps_box.inflate(0.001)
         ctc_gps = CtcWrapper(IntervalVector(gps_box))
         self.ctc = self.ctc & ctc_gps
 
@@ -91,6 +105,22 @@ class equivalent_contractor:
         f_back = AnalyticFunction([x], vec(x[0] - dx, x[1] - dy))
         self.ctc = CtcInverse(f_back, self.ctc)
 
+    def update_paving(self, precision: float = 1.0):
+        """Met à jour le paving en fonction de la boîte courante."""
+        self.ctc.contract(self.box)
+        if self.box.is_empty():
+            return False
+        try:
+            if self.box.max_diam() <= 0:
+                return False
+        except Exception:
+            pass
+        try:
+            self.paving = pave(self.box, self.ctc, precision)
+            return True
+        except Exception:
+            return False
+
     def add_movement_condition_non_recursive(self, dx_interval, dy_interval):
         """
         Pas encore fonctionnel. L'idée est d'utiliser un pavage en antécedent plutot qu'un Ctc. Cela casse la récursivité.
@@ -104,6 +134,8 @@ class equivalent_contractor:
 
         x = VectorVar(2)
         f_back = AnalyticFunction([x], vec(x[0] - dx, x[1] - dy))
+
+        self.ctc = CtcInverse(f_back, CtcWrapper_PavingOut(self.paving))
         
         #print(self.paving.boxes(PavingOut.outer))
         #self.ctc = CtcInverse(f_back, CtcWrapper(self.paving))
