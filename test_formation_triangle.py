@@ -9,7 +9,7 @@ import threading
 import numpy as np
 
 # Import du module principal (bblib.py)
-from utils.bblib import init_blueboat
+from utils.bblib import BlueBoatConfig
 
 
 
@@ -17,20 +17,10 @@ def main():
     # ------------------------------------------------------------------
     # Initialisation des trois bateaux
     # ------------------------------------------------------------------
-    # mav1, imu1, gps1, motors1, nav1 = init_blueboat(
-    #     host="192.168.1.1",
-    #     port=6040
-    # )
-
-    mav2, imu2, gps2, motors2, nav2 = init_blueboat(
-        host="192.168.2.202", sysid=2,
-        port=6040
-    )
-
-    mav3, imu3, gps3, motors3, nav3 = init_blueboat(
-        host="192.168.2.203", sysid=3,
-        port=6040
-    )
+    config = BlueBoatConfig()
+    mav1, imu1, gps1, motors1, nav1 = config.init_from_config(boat_id=1)
+    mav2, imu2, gps2, motors2, nav2 = config.init_from_config(boat_id=2)
+    mav3, imu3, gps3, motors3, nav3 = config.init_from_config(boat_id=3)
 
     # ------------------------------------------------------------------
     # fonction de calcul des points cibles en temps réel
@@ -59,8 +49,8 @@ def main():
             target_B : np.array([[x], [y]]) - target position for scout B (right front vertex)
         """
         # Extract mothership position and heading
-        ms_pos = np.array([[gps2.get_coords()[0]], [gps2.get_coords()[1]]])
-        ms_theta = math.radians(nav2.get_current_heading())
+        ms_pos = np.array([[gps1.get_coords()[0]], [gps1.get_coords()[1]]])
+        ms_theta = math.radians(nav1.get_current_heading())
 
         #print(ms_pos)
 
@@ -88,8 +78,11 @@ def main():
     # Boucle principale de suivi des points cibles
     # ------------------------------------------------------------------
     print("[Boat1] Démarrage du suivi GPS.")
+    print("[Boat2] Démarrage du suivi GPS.")
     print("[Boat3] Démarrage du suivi GPS.")
+    print("[Boat2] Armement.")
     print("[Boat3] Armement.")
+    mav2.arm_disarm(True)
     mav3.arm_disarm(True)
     start_time = time.time()
     duration = 100.0  # secondes
@@ -118,14 +111,15 @@ def main():
             continue
 
         # Commande de suivi pour le bateau 2 (scout A)
-        #nav2.go_to_position(tgt_coords_A)
-
-        coordsA.append(cur_coords_A)
-        coordsB.append(cur_coords_B)
+        nav2.go_to_position(tgt_coords_A)
 
         # Commande de suivi pour le bateau 3 (scout B)
         nav3.go_to_position(tgt_coords_B)
 
+        coordsA.append(cur_coords_A)
+        coordsB.append(cur_coords_B)
+
+        
         #print(cur_coords_B, tgt_coords_B)
 
         if time.time() - start_time > duration:
