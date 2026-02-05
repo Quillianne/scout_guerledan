@@ -1,6 +1,10 @@
 This is the Simulation directory
 
-In the Path_planner file, there are several algorithms to tell the scouts where to go:
+[`Boat.py`](Boat.py) contains the class that models the BlueBoat.
+
+[`Controller.py`](Controller.py) contains the controller that sends commands to the boat to steer it towards a target.
+
+In the [`Path_planner.py`](Path_planner.py) file, there are several algorithms that compute the target points for the scouts:
     
     - compute_target_points() : uses the position and heading of the Mothership to place the scouts on the plane.
     
@@ -8,4 +12,4 @@ In the Path_planner file, there are several algorithms to tell the scouts where 
 
     - compute_target_points_3() : same as n°2 but with lower refresh rate of data.
 
-    - compute_target_points_4() : #WIP uses only the distances to place the scouts. needs intervals.
+[`Simulation.py`](Simulation.py) runs the simulation for a given controller (mode 1, 2 or 3) using the 3 files above, and handles the display part.

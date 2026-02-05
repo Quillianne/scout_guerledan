@@ -24,7 +24,7 @@ Ce projet vise à développer un système de contrôle et de navigation pour une
   - `matplotlib==3.10.7` - Visualisation et tracé de trajectoires
   - `codac==2.0.0.dev23` - Bibliothèque pour les calculs par intervalles et méthodes ensemblistes
 
-- (optionnel) **VIBes-viewer** pour l'affichage des boîtes en simulation d'intervalles (via Codac)
+- **VIBes-viewer** pour l'affichage des boîtes en simulation d'intervalles (via Codac)
 
 ### Installation
 
@@ -39,7 +39,7 @@ cd scout_guerledan
 pip install -r requirements.txt
 ```
 
-3. (Optionnel) Installer VIBes-viewer si vous souhaitez l'affichage des boîtes :
+3. Installer VIBes-viewer si vous souhaitez l'affichage des boîtes :
 ```bash
 # Releases : https://github.com/ENSTABretagneRobotics/VIBES/releases
 ```
@@ -52,43 +52,38 @@ Lancer l'interface pour monitorer et contrôler les bateaux :
 ```bash
 python boat_control_gui.py
 ```
+![GUI](figures/GUI.png)
 
 L'interface permet de :
 - Visualiser position GPS, batterie, cap
 - Armer/désarmer les bateaux
 - Déclencher le retour maison
-- Modifier IP/port/sysid via “Modifier config”
+- Modifier IP/port/sysid via “Modifier config” :
+
+![GUI config](figures/GUI_config.png)
+
 - Maintenir les heartbeats pendant l'exécution
 
 Le heartbeat évite le désarmement de sécurité : auparavant, si on lançait un script puis qu'on le fermait et relançait plus tard, les bateaux restaient désarmés car ils ne recevaient plus d'info. Le maintien du heartbeat prévient ce cas.
 
-#### 2. Heartbeat (maintien de connexion)
-```bash
-python heartbeat.py --targets 192.168.2.201:1,192.168.2.202:2,192.168.2.203:3
-```
 
-#### 3. Tests de formation en triangle
+
+#### 2. Tests de formation en triangle
 Tester la formation géométrique avec bateaux réels :
 ```bash
 python test_formation_triangle.py
 ```
 
-#### 4. Simulation (ancienne, simpliste)
+#### 3. Simulation (ancienne, simpliste)
 Tester des algorithmes de base en simulation (historiquement utilisés la 1ʳᵉ semaine) :
 ```bash
 python Sim/Simulation.py
 ```
 
-#### 5. Simulation avec intervalles + VIBes-viewer
+#### 4. Simulation avec intervalles + VIBes-viewer
 Simulation de flotte + affichage VIBes-viewer (Codac) :
 ```bash
 python test_display.py
-```
-
-#### 6. Visualisation de trajectoires
-Analyse et GIF à partir des fichiers `testcoordsA.npy` / `testcoordsB.npy` :
-```bash
-python plot_trajectories_optimized.py
 ```
 
 
@@ -96,45 +91,46 @@ python plot_trajectories_optimized.py
 
 ### Dossiers principaux
 
-#### `Sim/`
+#### [`Sim/`](Sim/)
 **Ancien** : simulateur très simpliste utilisé la première semaine pour visualiser certains comportements.
 
-- `Boat.py` : Modèle cinématique de bateau
-- `Controller.py` : Contrôleurs (cap-vers-point, cap-constant, etc.)
-- `Path_planner.py` : Planification des points de passage pour formations
-- `Simulation.py` : Moteur de simulation avec visualisation matplotlib
-- `README.md` : Détails des algorithmes de planification (compute_target_points*)
+- [`Boat.py`](Sim/Boat.py) : Modèle cinématique de bateau
+- [`Controller.py`](Sim/Controller.py) : Contrôleurs (cap-vers-point, cap-constant, etc.)
+- [`Path_planner.py`](Sim/Path_planner.py) : Planification des points de passage pour formations
+- [`Simulation.py`](Sim/Simulation.py) : Moteur de simulation avec visualisation matplotlib
+- [`README.md`](Sim/README.md) : Détails des algorithmes de planification (compute_target_points*)
 
-
-
-#### `utils/`
+#### [`utils/`](utils/)
 Modules utilitaires pour la communication et la gestion des bateaux.
 
-- `bblib.py` : Bibliothèque principale pour communication MAVLink avec BlueBoat
-- `geo_conversion.py` : Conversions géographiques (WGS84 ↔ NED)
-- `interval.md` : Documentation des contracteurs équivalents / formules
-- `settings.py` : Configuration globale du projet
-- `prediction.py` : Algorithmes de prédiction et estimation de trajectoires
-- `vibes_display.py` : Affichage et visualisation avec VIBes-viewer
+- [`bblib.py`](utils/bblib.py) : Bibliothèque principale pour communication MAVLink et contrôle des bateaux
+- [`geo_conversion.py`](utils/geo_conversion.py) : Conversions géographiques (WGS84 ↔ NED)
+- [`interval.md`](utils/interval.md) : Documentation des contracteurs équivalents / formules
+- [`settings.py`](utils/settings.py) : Configuration globale du projet
+- [`prediction.py`](utils/prediction.py) : Classe et fonctions de prédiction et estimation de trajectoires
+- [`vibes_display.py`](utils/vibes_display.py) : Affichage et visualisation avec VIBes-viewer
 
+#### [`logs/`](logs/)
+Logs des missions (celles avec observation par intervalles). Ils sont ordonnés par date et heure.
 
 ### Scripts principaux
 
-- `boat_control_gui.py` : Interface graphique de monitoring et contrôle des bateaux
-- `heartbeat.py` : Gestion des heartbeats MAVLink pour maintenir les connexions
-- `plot_trajectories_optimized.py` : Analyse et GIF des trajectoires à partir de `testcoordsA.npy` / `testcoordsB.npy`
+- [`boat_control_gui.py`](boat_control_gui.py) : Interface graphique de monitoring et contrôle des bateaux
+- [`obserevr_logger.py`](observer_logger.py) : Observe par intervalles les états courants et log les positions dans [`logs/`](logs/)
 
 Scripts de test pour différentes fonctionnalités :
-  - `test_bblib.py` : Tests de la bibliothèque MAVLink
-  - `test_formation_triangle.py` : Test de formation en triangle
-  - `test_mavlinkrest.py` : Tests API REST MAVLink
-  - `test_multiple_boat.py` : Tests multi-bateaux
+  - [`test_bblib.py`](test_bblib.py) : Tests de la bibliothèque MAVLink
+  - [`test_mavlinkrest.py`](test_mavlinkrest.py) : Tests API REST MAVLink
+
+Missions tests :
+  - [`test_formation_triangle.py`](test_formation_triangle.py) : Test de formation en triangle
+  - [`test_multiple_boat.py`](test_multiple_boat.py) : Tests multi-bateaux
 
 ### Fichiers d'analyse
 
-- `trajectoires_analyse_complete.png` : Visualisation complète des trajectoires
-- `box_sizes_escape.png`, `box_sizes_no_escape.png` : Analyses de la taille des boîtes englobantes
-- `compute_times_reset.png`, `compute_times_no_reset.png` : Analyses des temps de calcul
+- [`trajectoires_analyse_complete.png`](trajectoires_analyse_complete.png) : Visualisation complète des trajectoires
+- [`box_sizes_escape.png`](box_sizes_escape.png), [`box_sizes_no_escape.png`](box_sizes_no_escape.png) : Analyses de la taille des boîtes englobantes
+- [`compute_times_reset.png`](compute_times_reset.png), [`compute_times_no_reset.png`](compute_times_no_reset.png) : Analyses des temps de calcul
 
 
 
@@ -147,5 +143,6 @@ Scripts de test pour différentes fonctionnalités :
 ## 👥 Contributeurs
 
 - Kilian BARANTAL
-- Ewen MELE
+- Ewen MÉLÉE
 - Aurèle PLANCHARD
+- Ewen MELE

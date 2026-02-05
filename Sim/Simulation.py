@@ -178,7 +178,7 @@ def display(boats, goals, mothership=None, save_frame=False):
             display.frames = []
         # Capture current figure as image array
         display.fig.canvas.draw()
-        frame = np.frombuffer(display.fig.canvas.tostring_rgb(), dtype=np.uint8)
+        frame = np.frombuffer(display.fig.canvas.tostring_argb(), dtype=np.uint8)
         frame = frame.reshape(display.fig.canvas.get_width_height()[::-1] + (3,))
         display.frames.append(frame)
 
