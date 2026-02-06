@@ -2,6 +2,6 @@ import os
 
 from django.core.wsgi import get_wsgi_application
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "beautiful_replay_site.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "web_interface_app.settings")
 
 application = get_wsgi_application()

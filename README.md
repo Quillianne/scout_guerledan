@@ -157,10 +157,10 @@ Simulation de flotte + affichage VIBes-viewer (Codac) :
 python test_display.py
 ```
 
-#### 5. Beautiful Replay (Django)
-Interface web pour rejouer un log avec carte, contrôles de lecture, et affichage des boîtes/pavages.
+#### 5. Web interface (Django)
+Interface web pour gérer la flotte (manager), visualiser l’observation en temps réel (interval), et rejouer les logs (replay) avec carte, contrôles de lecture, boîtes et pavages.
 
-Depuis le dossier [beautiful_replay/](beautiful_replay) :
+Depuis le dossier [web_interface/](web_interface) :
 ```bash
 python manage.py migrate  # uniquement la première fois
 python manage.py runserver
@@ -168,6 +168,21 @@ python manage.py runserver
 Puis ouvrir http://127.0.0.1:8000
 
 Le bouton “Visualiser” ouvre le lecteur. “Changer de log” ré-affiche la fenêtre de configuration (log, downsample, incertitudes, mode récursif).
+
+#### 6. Fake mavlink2rest (simulateur)
+Permet de tester sans bateau sur l’eau : simule les endpoints mavlink2rest (GPS/IMU/batterie/RC) pour plusieurs bateaux.
+```bash
+python fake_mavlink2rest.py --count 3 --base-port 6040
+```
+Vous pouvez aussi ajouter du bruit GPS/cap via `--gps-noise-m`, `--heading-noise-deg`, `--heading-bias-deg`.
+Pour la config, utilisez `boat_control_config.json` avec `host=127.0.0.1`, `port=6040` (puis 6041, 6042, …), et `sysid` qui correspond à l’index (1, 2, 3, …). Exemple :
+```json
+[
+  {"boat_id": 1, "host": "127.0.0.1", "port": 6040, "sysid": 1, "compid": 1},
+  {"boat_id": 2, "host": "127.0.0.1", "port": 6041, "sysid": 2, "compid": 1},
+  {"boat_id": 3, "host": "127.0.0.1", "port": 6042, "sysid": 3, "compid": 1}
+]
+```
 
 
 ## Structure du projet
@@ -188,8 +203,14 @@ Modules utilitaires pour la communication et la gestion des bateaux.
 #### [`logs/`](logs/)
 Logs des missions (celles avec observation par intervalles). Ils sont ordonnés par date et heure.
 
-#### [`beautiful_replay/`](beautiful_replay/)
-Application Django de replay visuel (carte, lecture/pause/vitesse, boîtes et pavages via `FleetPredictor`).
+#### [`web_interface/`](web_interface/)
+Application Django avec trois modules :
+- **Manager de flotte** : configuration des bateaux, actions (arm/modes/retour), carte GPS.
+- **Observation intervalles** : suivi temps réel des boîtes/pavages et logs.
+- **Replay** : lecture des logs avec contrôles et affichage des boîtes/pavages via `FleetPredictor`.
+
+#### [`fake_mavlink2rest.py`](fake_mavlink2rest.py)
+Simulateur mavlink2rest pour tests hors-bateau (GPS/IMU/batterie/RC).
 
 #### [`figures/`](figures/)
 

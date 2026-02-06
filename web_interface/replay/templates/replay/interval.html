@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Observation intervalles</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    header { padding: 12px 16px; border-bottom: 1px solid #ddd; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+    header a { text-decoration: none; color: #1e88e5; }
+    #map { height: calc(100vh - 70px); z-index: 0; }
+    .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    label { font-size: 13px; }
+    input, button { font-size: 13px; padding: 4px 6px; }
+    .status { margin-left: auto; font-size: 12px; color: #555; }
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+    }
+    .panel {
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      width: min(800px, 92vw);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .config-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+    }
+    .actions { display: flex; gap: 8px; }
+  </style>
+</head>
+<body>
+  <div id="configOverlay" class="overlay">
+    <div class="panel">
+      <h3>Configuration intervalle</h3>
+      <div class="config-grid">
+        <label>Init σ <input id="initUnc" type="number" min="0" step="0.1" value="0" /></label>
+        <label>GPS σ <input id="gpsUnc" type="number" min="0" step="0.1" value="0" /></label>
+        <label>Dist σ <input id="distUnc" type="number" min="0" step="0.1" value="0.1" /></label>
+        <label>Move σ <input id="moveUnc" type="number" min="0" step="0.1" value="0.5" /></label>
+        <label>Precision <input id="precision" type="number" min="0.1" step="0.1" value="1" /></label>
+        <label>Margin <input id="margin" type="number" min="0" step="1" value="10" /></label>
+        <label>Récursif <input id="recursive" type="checkbox" /></label>
+      </div>
+      <div class="actions">
+        <button id="closeConfigBtn">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <header>
+    <a href="/">← Accueil</a>
+    <div class="controls">
+      <button id="changeConfigBtn">Changer config</button>
+      <button id="startBtn">Démarrer</button>
+      <button id="stopBtn">Pause</button>
+      <button id="resetBtn">Reset</button>
+      <button id="logStartBtn">Start log</button>
+      <button id="logStopBtn">Stop log</button>
+    </div>
+    <div class="status" id="status">Idle</div>
+  </header>
+  <div id="map"></div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script>
+    const configOverlay = document.getElementById("configOverlay");
+    const closeConfigBtn = document.getElementById("closeConfigBtn");
+    const changeConfigBtn = document.getElementById("changeConfigBtn");
+    const initUnc = document.getElementById("initUnc");
+    const gpsUnc = document.getElementById("gpsUnc");
+    const distUnc = document.getElementById("distUnc");
+    const moveUnc = document.getElementById("moveUnc");
+    const precision = document.getElementById("precision");
+    const margin = document.getElementById("margin");
+    const recursive = document.getElementById("recursive");
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const logStartBtn = document.getElementById("logStartBtn");
+    const logStopBtn = document.getElementById("logStopBtn");
+    const statusEl = document.getElementById("status");
+
+    const map = L.map("map").setView([48.2, -3.0], 15);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 20,
+      attribution: "&copy; OpenStreetMap contributors",
+    }).addTo(map);
+
+    const colors = ["#e53935", "#1e88e5", "#43a047"];
+    const boatMarkers = colors.map((color) =>
+      L.circleMarker([0, 0], { radius: 6, color, fillColor: color, fillOpacity: 1 }).addTo(map)
+    );
+    const boxLayers = colors.map((color) =>
+      L.polygon([], { color, weight: 1, fillColor: color, fillOpacity: 0.12 }).addTo(map)
+    );
+    const pavingLayers = [
+      L.layerGroup().addTo(map),
+      L.layerGroup().addTo(map),
+    ];
+
+    let timer = null;
+
+    function setStatus(text) { statusEl.textContent = text; }
+
+    function buildQuery() {
+      return `init_uncertainty=${encodeURIComponent(initUnc.value || 0)}`
+        + `&gps_uncertainty=${encodeURIComponent(gpsUnc.value || 0)}`
+        + `&dist_uncertainty=${encodeURIComponent(distUnc.value || 0.1)}`
+        + `&move_uncertainty=${encodeURIComponent(moveUnc.value || 0.5)}`
+        + `&precision=${encodeURIComponent(precision.value || 1.0)}`
+        + `&margin=${encodeURIComponent(margin.value || 10)}`
+        + `&recursive=${encodeURIComponent(recursive.checked ? 1 : 0)}`;
+    }
+
+    function showConfig() { configOverlay.style.display = "flex"; }
+    function hideConfig() { configOverlay.style.display = "none"; }
+
+    async function step() {
+      const res = await fetch(`/api/interval/step/?${buildQuery()}`);
+      if (!res.ok) {
+        setStatus("GPS indisponible");
+        return;
+      }
+      const data = await res.json();
+      if (data.boats) {
+        data.boats.forEach((gps, i) => {
+          if (!gps) return;
+          boatMarkers[i].setLatLng([gps[0], gps[1]]);
+          if (i === 0) map.setView([gps[0], gps[1]], map.getZoom());
+        });
+      }
+      if (data.boxes) {
+        data.boxes.forEach((poly, i) => {
+          boxLayers[i].setLatLngs(poly.map(([lat, lon]) => [lat, lon]));
+        });
+      }
+      pavingLayers.forEach((layer) => layer.clearLayers());
+      if (data.pavings) {
+        const scoutColors = [colors[1], colors[2]];
+        data.pavings.forEach((scoutPaving, scoutIdx) => {
+          const color = scoutColors[scoutIdx] || "#999";
+          scoutPaving.forEach((poly) => {
+            L.polygon(poly.map(([lat, lon]) => [lat, lon]), {
+              color,
+              weight: 1,
+              fillColor: color,
+              fillOpacity: 0.08,
+            }).addTo(pavingLayers[scoutIdx]);
+          });
+        });
+      }
+      setStatus("Live");
+    }
+
+    startBtn.addEventListener("click", () => {
+      if (timer) return;
+      timer = setInterval(step, 1000);
+      step();
+    });
+
+    stopBtn.addEventListener("click", () => {
+      if (timer) clearInterval(timer);
+      timer = null;
+      setStatus("Pause");
+    });
+
+    resetBtn.addEventListener("click", async () => {
+      await fetch("/api/interval/reset/");
+      setStatus("Reset");
+    });
+
+    logStartBtn.addEventListener("click", async () => {
+      const res = await fetch("/api/interval/log/start/", { method: "POST" });
+      const data = await res.json();
+      setStatus(`Log: ${data.log || "start"}`);
+    });
+
+    logStopBtn.addEventListener("click", async () => {
+      await fetch("/api/interval/log/stop/", { method: "POST" });
+      setStatus("Log stoppé");
+    });
+
+    changeConfigBtn.addEventListener("click", showConfig);
+    closeConfigBtn.addEventListener("click", hideConfig);
+    configOverlay.addEventListener("click", (e) => {
+      if (e.target === configOverlay) hideConfig();
+    });
+  </script>
+</body>
+</html>

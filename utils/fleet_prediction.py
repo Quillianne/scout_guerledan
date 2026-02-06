@@ -27,6 +27,7 @@ class FleetPredictor:
         precision: float = 1.0,
         margin: float = 10.0,
         use_paving_objects: bool = True,
+        enable_display: bool = True,
     ):
         if len(initial_positions) != 3:
             raise ValueError("FleetPredictor attend exactement 3 bateaux")
@@ -41,7 +42,7 @@ class FleetPredictor:
         ]
 
         self.display = None
-        if len(self.contractors) == 3:
+        if enable_display and len(self.contractors) == 3:
             self.display = VibesDisplay(
                 self.contractors[0],
                 self.contractors[1],

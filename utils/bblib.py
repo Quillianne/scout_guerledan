@@ -471,8 +471,8 @@ class Navigation:
 
             correction = self.Kp * error
 
-            left_motor = self.base_speed + correction
-            right_motor = self.base_speed - correction
+            left_motor = self.base_speed - correction
+            right_motor = self.base_speed + correction
             #print(left_motor,right_motor)
             left_motor = np.clip(left_motor, -self.max_cmd, self.max_cmd)
             right_motor = np.clip(right_motor, -self.max_cmd, self.max_cmd)
@@ -516,8 +516,8 @@ class Navigation:
                 reference_distance = distance
                 distance_correction = math.tanh(distance_target / reference_distance)
 
-                left_motor = distance_correction * self.base_speed + correction
-                right_motor = distance_correction * self.base_speed - correction
+                left_motor = distance_correction * self.base_speed - correction
+                right_motor = distance_correction * self.base_speed + correction
 
                 left_motor = np.clip(left_motor, -self.max_cmd, self.max_cmd)
                 right_motor = np.clip(right_motor, -self.max_cmd, self.max_cmd)
@@ -561,8 +561,8 @@ class Navigation:
         reference_distance = 2.0
         distance_correction = math.tanh(distance_target / reference_distance)
 
-        left_motor = distance_correction * self.base_speed + correction
-        right_motor = distance_correction * self.base_speed - correction
+        left_motor = distance_correction * self.base_speed - correction
+        right_motor = distance_correction * self.base_speed + correction
 
         left_motor = np.clip(left_motor, -self.max_cmd, self.max_cmd)
         right_motor = np.clip(right_motor, -self.max_cmd, self.max_cmd)

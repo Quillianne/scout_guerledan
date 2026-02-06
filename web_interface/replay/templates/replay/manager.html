@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Manager de flotte</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    header { padding: 12px 16px; border-bottom: 1px solid #ddd; display: flex; gap: 16px; align-items: center; }
+    header a { text-decoration: none; color: #1e88e5; }
+    main { height: calc(100vh - 58px); display: flex; flex-direction: column; gap: 12px; padding: 12px 16px; }
+    .top-bar { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid #eee; border-radius: 12px; }
+    .cards { display: flex; flex-direction: row; gap: 12px; overflow-x: auto; overflow-y: hidden; padding-bottom: 6px; justify-content: center; flex: 0 0 auto; }
+    .card { min-width: 280px; max-width: 340px; height: auto; background: #fff; border-radius: 14px; padding: 12px; box-shadow: 0 6px 16px rgba(0,0,0,0.08); display: flex; flex-direction: column; gap: 8px; }
+    .card h4 { margin: 0; }
+    .card small { color: #666; }
+    .card .row { display: flex; gap: 8px; flex-wrap: wrap; width: 100%; justify-content: center; }
+    .card .info { display: flex; flex-direction: column; gap: 4px; }
+    .card button { padding: 8px 10px; flex: 1 1 0; }
+    .status { font-size: 12px; color: #555; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #bbb; display: inline-block; }
+    .dot.connected { background: #2ecc71; }
+    .dot.disconnected { background: #e74c3c; }
+    .hidden { display: none !important; }
+    .main-view, .test-view { display: flex; flex-direction: column; gap: 8px; flex: 1 1 auto; }
+    .test-view { border-top: 1px solid #eee; padding-top: 8px; }
+    button { padding: 6px 10px; }
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .panel {
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      width: min(900px, 92vw);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 6px; border-bottom: 1px solid #eee; font-size: 13px; }
+    input { width: 100%; padding: 4px; box-sizing: border-box; }
+    .actions { display: flex; gap: 8px; margin: 10px 0; }
+    .map-card { background: #fff; border-radius: 14px; box-shadow: 0 6px 16px rgba(0,0,0,0.08); overflow: hidden; display: flex; flex-direction: column; flex: 1 1 auto; width: 100%; }
+    .map-card.expanded { position: fixed; inset: 16px; z-index: 1100; height: auto; }
+    .map-card.expanded #map { height: calc(100vh - 120px); }
+    .map-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid #eee; }
+    #map { width: 100%; height: 100%; transition: height 0.2s ease; }
+    .map-card.expanded { position: fixed; inset: 16px; z-index: 1100; }
+    .map-card.expanded #map { height: calc(100vh - 120px); }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/">← Accueil</a>
+    <strong>Manager de flotte</strong>
+    <span class="status" id="status">Idle</span>
+  </header>
+
+  <div id="configOverlay" class="overlay">
+    <div class="panel">
+      <h3>Configuration des bateaux</h3>
+      <div class="actions">
+        <button id="addBoatBtn">Ajouter</button>
+        <button id="saveBtn">Sauvegarder</button>
+        <button id="closeConfigBtn">Fermer</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th><th>Host</th><th>Port</th><th>Sysid</th><th>Compid</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="boatsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <main>
+    <div class="top-bar">
+      <button id="configBtn">Configurer</button>
+      <button id="refreshGpsBtn">GPS</button>
+      <label style="display:flex;align-items:center;gap:6px;">
+        Auto
+        <input id="autoGps" type="checkbox" checked />
+      </label>
+      <span class="status" id="targetInfo">Point: aucun</span>
+      <button id="clearTargetBtn">Effacer point</button>
+      <span class="status" id="statusTop">Idle</span>
+    </div>
+    <div class="cards" id="cards"></div>
+    <div class="map-card" id="mapCard">
+      <div class="map-header">
+        <strong>Carte</strong>
+        <button id="toggleMapBtn">Agrandir</button>
+      </div>
+      <div id="map"></div>
+    </div>
+  </main>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script>
+    const configOverlay = document.getElementById("configOverlay");
+    const boatsBody = document.getElementById("boatsBody");
+    const addBoatBtn = document.getElementById("addBoatBtn");
+    const saveBtn = document.getElementById("saveBtn");
+    const closeConfigBtn = document.getElementById("closeConfigBtn");
+    const configBtn = document.getElementById("configBtn");
+    const refreshGpsBtn = document.getElementById("refreshGpsBtn");
+    const autoGps = document.getElementById("autoGps");
+    const statusEl = document.getElementById("status");
+    const statusTopEl = document.getElementById("statusTop");
+    const cardsEl = document.getElementById("cards");
+    const toggleMapBtn = document.getElementById("toggleMapBtn");
+    const mapCard = document.getElementById("mapCard");
+    const targetInfo = document.getElementById("targetInfo");
+    const clearTargetBtn = document.getElementById("clearTargetBtn");
+
+    const map = L.map("map").setView([48.2, -3.0], 14);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 20,
+      attribution: "&copy; OpenStreetMap contributors",
+    }).addTo(map);
+
+    const markers = new Map();
+    const trails = new Map();
+    const headingArrows = new Map();
+    const targetMarkers = new Map();
+    const targetLines = new Map();
+    const boatColors = new Map();
+    const lastEvidence = new Map();
+    const connectionState = new Map();
+    let hasCentered = false;
+    let selectedTarget = null;
+    let selectedTargetMarker = null;
+
+    const CONNECT_TTL_MS = 3000;
+    const DISCONNECT_TTL_MS = 5000;
+
+    const COLOR_PALETTE = [
+      "#1e88e5",
+      "#e53935",
+      "#43a047",
+      "#8e24aa",
+      "#fb8c00",
+      "#00acc1",
+      "#f4511e",
+      "#3949ab",
+    ];
+
+    function colorForBoat(boatId, idx = 0) {
+      if (boatColors.has(boatId)) return boatColors.get(boatId);
+      const color = COLOR_PALETTE[idx % COLOR_PALETTE.length];
+      boatColors.set(boatId, color);
+      return color;
+    }
+
+    function hexToRgba(hex, alpha) {
+      const raw = hex.replace("#", "");
+      const bigint = parseInt(raw, 16);
+      const r = (bigint >> 16) & 255;
+      const g = (bigint >> 8) & 255;
+      const b = bigint & 255;
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function setStatus(text) {
+      statusEl.textContent = text;
+      statusTopEl.textContent = text;
+    }
+
+    function markEvidence(boatId) {
+      if (boatId === undefined || boatId === null) return;
+      lastEvidence.set(boatId, Date.now());
+    }
+
+    function updateConnectionIndicators() {
+      const now = Date.now();
+      document.querySelectorAll(".card").forEach((card) => {
+        const id = Number(card.dataset.boatId);
+        if (!id) return;
+        const dot = card.querySelector("[data-conn]");
+        const text = card.querySelector("[data-conn-text]");
+        if (!dot || !text) return;
+        const last = lastEvidence.get(id);
+        const isConnected = last !== undefined && now - last < CONNECT_TTL_MS;
+        const isDisconnected = last === undefined || now - last > DISCONNECT_TTL_MS;
+        const current = connectionState.get(id) ?? false;
+        let next = current;
+        if (isConnected) next = true;
+        else if (isDisconnected) next = false;
+        connectionState.set(id, next);
+        if (next) {
+          dot.classList.add("connected");
+          dot.classList.remove("disconnected");
+          text.textContent = "Connecté";
+        } else {
+          dot.classList.add("disconnected");
+          dot.classList.remove("connected");
+          text.textContent = "Déconnecté";
+        }
+      });
+    }
+
+    function rowTemplate(boat) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><input data-key="boat_id" type="number" value="${boat.boat_id ?? ""}" /></td>
+        <td><input data-key="host" value="${boat.host ?? ""}" /></td>
+        <td><input data-key="port" type="number" value="${boat.port ?? 6040}" /></td>
+        <td><input data-key="sysid" type="number" value="${boat.sysid ?? boat.boat_id ?? ""}" /></td>
+        <td><input data-key="compid" type="number" value="${boat.compid ?? 1}" /></td>
+        <td><button data-action="remove">✕</button></td>
+      `;
+      tr.querySelector("[data-action='remove']").addEventListener("click", () => tr.remove());
+      return tr;
+    }
+
+    function cardTemplate(boat, color) {
+      const div = document.createElement("div");
+      div.className = "card";
+      div.dataset.boatId = boat.boat_id ?? "";
+      if (color) {
+        div.style.background = hexToRgba(color, 0.08);
+        div.style.border = `1px solid ${hexToRgba(color, 0.25)}`;
+      }
+      div.innerHTML = `
+        <div class="row" style="align-items:center; justify-content:space-between;">
+          <h4>Bateau ${boat.boat_id ?? "?"}</h4>
+          <span class="badge"><span class="dot disconnected" data-conn></span><span data-conn-text>Déconnecté</span></span>
+        </div>
+        <div class="info">
+          <small>Batterie: <strong data-batt>?</strong></small>
+          <small>Cellules: <strong data-cells>?</strong></small>
+          <small>V/cell: <strong data-cells-v>?</strong></small>
+          <small>Pourcentage: <strong data-percent>?</strong></small>
+          <small>Cap: <strong data-heading>?</strong></small>
+          <small>Mode: <strong data-mode>?</strong></small>
+        </div>
+        <div class="main-view">
+          <div class="status" data-status>-</div>
+          <div class="row" style="margin-top:6px;">
+            <button data-action="arm">Arm</button>
+            <button data-action="disarm">Desarm</button>
+          </div>
+          <div class="row">
+            <button data-action="manual">MANUAL</button>
+            <button data-action="hold">HOLD</button>
+          </div>
+          <div class="row">
+            <button data-action="return_home">Go to home</button>
+            <button data-action="goto">Go to waypoint</button>
+          </div>
+          <div class="row">
+            <button data-action="stop_return_home">Stop go to</button>
+          </div>
+          <div class="row">
+            <button data-action="test">Test motors</button>
+          </div>
+        </div>
+        <div class="test-view hidden">
+          <div class="row" style="align-items:center;">
+            <button data-action="back">←</button>
+            <label>Armé
+              <input data-key="armed" type="checkbox" />
+            </label>
+          </div>
+          <div class="row">
+            <label>Throttle (CH1)
+              <input data-key="throttle" type="range" min="1000" max="2000" value="1500" />
+            </label>
+          </div>
+          <div class="row">
+            <label>Steering (CH3)
+              <input data-key="steering" type="range" min="1000" max="2000" value="1500" />
+            </label>
+          </div>
+          <div class="status" data-status-test>-</div>
+        </div>
+      `;
+      const mainView = div.querySelector(".main-view");
+      const testView = div.querySelector(".test-view");
+      const armedToggle = div.querySelector("[data-key='armed']");
+      const throttle = div.querySelector("[data-key='throttle']");
+      const steering = div.querySelector("[data-key='steering']");
+      const statusEl = div.querySelector("[data-status]");
+      const battEl = div.querySelector("[data-batt]");
+      const cellsEl = div.querySelector("[data-cells]");
+      const cellsVEl = div.querySelector("[data-cells-v]");
+      const percentEl = div.querySelector("[data-percent]");
+      const headingEl = div.querySelector("[data-heading]");
+      const modeEl = div.querySelector("[data-mode]");
+      const statusTestEl = div.querySelector("[data-status-test]");
+      const connDot = div.querySelector("[data-conn]");
+      const connText = div.querySelector("[data-conn-text]");
+
+      async function sendAction(actionName, payload = {}, timeoutMs = null) {
+        let controller = null;
+        let timeoutId = null;
+        if (timeoutMs) {
+          controller = new AbortController();
+          timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        }
+        try {
+          const res = await fetch("/api/boats/action/", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ boat_id: boat.boat_id, action: actionName, ...payload }),
+            signal: controller ? controller.signal : undefined,
+          });
+          if (!res.ok) {
+            return null;
+          }
+          return await res.json();
+        } catch (_err) {
+          return null;
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId);
+        }
+      }
+
+      let statusInFlight = false;
+      async function refreshStatus() {
+        if (statusInFlight) return;
+        statusInFlight = true;
+        const data = await sendAction("status", {}, 1500);
+        if (!data) {
+          statusEl.textContent = "Erreur status";
+          updateConnectionIndicators();
+          statusInFlight = false;
+          return;
+        }
+        const batt = data.battery?.voltage_V ?? "?";
+        const cells = Array.isArray(data.battery?.cells_V) ? data.battery.cells_V : [];
+        let percent = data.battery?.remaining_percent ?? "?";
+        const hdg = data.heading ?? "?";
+        const mode = data.mode?.mode ?? "?";
+        const hasStatus =
+          batt !== "?" ||
+          percent !== "?" ||
+          cells.length > 0 ||
+          mode !== "?" ||
+          (hdg !== "?" && mode !== "?");
+        const armed = data.mode?.armed ? "armé" : "désarmé";
+        battEl.textContent = batt !== "?" ? `${Number(batt).toFixed(2)} V` : "?";
+        cellsEl.textContent = cells.length ? `${cells.length}S` : "?";
+        cellsVEl.textContent = cells.length ? `${Number(cells.reduce((a, b) => a + b, 0) / cells.length).toFixed(2)} V` : "?";
+        if ((percent === "?" || percent === null || percent === undefined) && batt !== "?" && cells.length) {
+          const cellCount = cells.length;
+          const vMax = cellCount === 3 ? 12.6 : 16.8;
+          const vNom = cellCount === 3 ? 11.1 : 14.8;
+          const vMin = cellCount === 3 ? 9.9 : 13.2;
+          const vClamped = Math.max(vMin, Math.min(vMax, Number(batt)));
+          if (vClamped >= vNom) {
+            percent = 50 + 50 * (vClamped - vNom) / (vMax - vNom);
+          } else {
+            percent = 50 * (vClamped - vMin) / (vNom - vMin);
+          }
+          percent = Math.max(0, Math.min(100, percent));
+        }
+        percentEl.textContent = percent !== "?" ? `${Number(percent).toFixed(0)}%` : "?";
+        headingEl.textContent = hdg !== "?" ? `${Number(hdg).toFixed(0)}°` : "?";
+        modeEl.textContent = `${mode} (${armed})`;
+        if (armedToggle) armedToggle.checked = !!data.mode?.armed;
+        if (hasStatus) {
+          markEvidence(boat.boat_id);
+        }
+        updateConnectionIndicators();
+        statusInFlight = false;
+      }
+
+      div.querySelectorAll("button[data-action]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const action = btn.dataset.action;
+          if (action === "test") {
+            mainView.classList.add("hidden");
+            testView.classList.remove("hidden");
+            await refreshStatus();
+            return;
+          }
+          if (action === "back") {
+            testView.classList.add("hidden");
+            mainView.classList.remove("hidden");
+            throttle.value = 1500;
+            steering.value = 1500;
+            await sendRc();
+            return;
+          }
+          if (action === "arm") await sendAction("arm", { state: true });
+          if (action === "disarm") await sendAction("arm", { state: false });
+          if (action === "manual") await sendAction("mode", { mode: "MANUAL" });
+          if (action === "hold") await sendAction("mode", { mode: "HOLD" });
+          if (action === "return_home") await sendAction("return_home");
+          if (action === "stop_return_home") await sendAction("stop_return_home");
+          if (action === "goto") {
+            if (!selectedTarget) {
+              statusEl.textContent = "Choisir un point sur la carte";
+            } else {
+              await sendAction("goto", { lat: selectedTarget[0], lon: selectedTarget[1] });
+            }
+          }
+          await refreshStatus();
+        });
+      });
+
+      if (armedToggle) {
+        armedToggle.addEventListener("change", async () => {
+          await sendAction("arm", { state: armedToggle.checked });
+          statusTestEl.textContent = armedToggle.checked ? "Armé" : "Désarmé";
+        });
+      }
+
+      async function sendRc() {
+        const ch1 = Number(throttle.value);
+        const ch3 = Number(steering.value);
+        const data = await sendAction("rc", { ch1, ch3 });
+        statusTestEl.textContent = data ? `RC: ch1=${ch1} ch3=${ch3}` : "Erreur RC";
+      }
+
+      throttle.addEventListener("input", sendRc);
+      steering.addEventListener("input", sendRc);
+      refreshStatus();
+      setInterval(refreshStatus, 1000);
+      return div;
+    }
+
+    async function loadBoats() {
+      const res = await fetch("/api/boats/");
+      const data = await res.json();
+      boatsBody.innerHTML = "";
+      cardsEl.innerHTML = "";
+      data.boats.forEach((b, idx) => {
+        const color = colorForBoat(b.boat_id ?? idx, idx);
+        boatsBody.appendChild(rowTemplate(b));
+        cardsEl.appendChild(cardTemplate(b, color));
+      });
+      updateLayout();
+    }
+
+    function collectBoats() {
+      const boats = [];
+      boatsBody.querySelectorAll("tr").forEach((tr) => {
+        const item = {};
+        tr.querySelectorAll("input").forEach((inp) => {
+          const key = inp.dataset.key;
+          const value = inp.type === "number" ? Number(inp.value) : inp.value;
+          item[key] = value;
+        });
+        boats.push(item);
+      });
+      return boats;
+    }
+
+    async function saveBoats() {
+      const boats = collectBoats();
+      setStatus("Sauvegarde...");
+      const res = await fetch("/api/boats/save/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ boats }),
+      });
+      if (!res.ok) {
+        setStatus("Erreur sauvegarde");
+        return;
+      }
+      setStatus("Sauvé");
+      await loadBoats();
+    }
+
+    async function refreshGps() {
+      const res = await fetch("/api/boats/gps/");
+      if (!res.ok) return;
+      const data = await res.json();
+      const fitPoints = [];
+      data.boats.forEach((b, idx) => {
+        if (!b.gps) return;
+        const key = b.boat_id;
+        const color = colorForBoat(b.boat_id ?? key, idx);
+        const latlng = [b.gps[0], b.gps[1]];
+        fitPoints.push(latlng);
+        if (!markers.has(key)) {
+          markers.set(
+            key,
+            L.circleMarker(latlng, { radius: 6, color, fillColor: color, fillOpacity: 0.9 }).addTo(map)
+          );
+        } else {
+          markers.get(key).setLatLng(latlng);
+        }
+        if (!trails.has(key)) {
+          trails.set(key, L.polyline([], { weight: 2, opacity: 0.6, color }).addTo(map));
+        }
+        const trail = trails.get(key);
+        const latlngs = trail.getLatLngs();
+        latlngs.push(latlng);
+        trail.setLatLngs(latlngs);
+        if (b.heading !== undefined && b.heading !== null) {
+          const arrow = computeArrow(latlng[0], latlng[1], b.heading, 12);
+          if (!headingArrows.has(key)) {
+            headingArrows.set(key, L.polyline(arrow, { weight: 2, opacity: 0.9, color }).addTo(map));
+          } else {
+            headingArrows.get(key).setLatLngs(arrow);
+          }
+        }
+        if (b.target) {
+          const t = [b.target[0], b.target[1]];
+          if (!targetMarkers.has(key)) {
+            targetMarkers.set(key, L.circleMarker(t, { radius: 6, color: "#ff9800" }).addTo(map));
+          } else {
+            targetMarkers.get(key).setLatLng(t);
+          }
+          if (!targetLines.has(key)) {
+            targetLines.set(key, L.polyline([latlng, t], { weight: 2, color: "#ff9800", opacity: 0.8 }).addTo(map));
+          } else {
+            targetLines.get(key).setLatLngs([latlng, t]);
+          }
+        } else {
+          if (targetMarkers.has(key)) {
+            map.removeLayer(targetMarkers.get(key));
+            targetMarkers.delete(key);
+          }
+          if (targetLines.has(key)) {
+            map.removeLayer(targetLines.get(key));
+            targetLines.delete(key);
+          }
+        }
+      });
+      updateConnectionIndicators();
+      if (!hasCentered && fitPoints.length > 0) {
+        hasCentered = true;
+        const bounds = L.latLngBounds(fitPoints);
+        map.fitBounds(bounds.pad(0.2));
+      }
+      updateLayout();
+    }
+
+    function computeArrow(lat, lon, headingDeg, lengthM) {
+      const rad = headingDeg * Math.PI / 180.0;
+      const dLat = (lengthM * Math.cos(rad)) / 111111.0;
+      const dLon = (lengthM * Math.sin(rad)) / (111111.0 * Math.cos(lat * Math.PI / 180.0));
+      const endLat = lat + dLat;
+      const endLon = lon + dLon;
+      const headLen = lengthM * 0.4;
+      const leftRad = rad + Math.PI * 0.75;
+      const rightRad = rad - Math.PI * 0.75;
+      const leftLat = endLat + (headLen * Math.cos(leftRad)) / 111111.0;
+      const leftLon = endLon + (headLen * Math.sin(leftRad)) / (111111.0 * Math.cos(lat * Math.PI / 180.0));
+      const rightLat = endLat + (headLen * Math.cos(rightRad)) / 111111.0;
+      const rightLon = endLon + (headLen * Math.sin(rightRad)) / (111111.0 * Math.cos(lat * Math.PI / 180.0));
+      return [
+        [lat, lon],
+        [endLat, endLon],
+        [leftLat, leftLon],
+        [endLat, endLon],
+        [rightLat, rightLon],
+      ];
+    }
+
+    function updateLayout() {
+      map.invalidateSize();
+    }
+
+    addBoatBtn.addEventListener("click", () => {
+      boatsBody.appendChild(rowTemplate({ boat_id: "", host: "", port: 6040, sysid: "", compid: 1 }));
+    });
+
+    saveBtn.addEventListener("click", saveBoats);
+    refreshGpsBtn.addEventListener("click", refreshGps);
+    configBtn.addEventListener("click", () => { configOverlay.style.display = "flex"; });
+    closeConfigBtn.addEventListener("click", () => { configOverlay.style.display = "none"; });
+    toggleMapBtn.addEventListener("click", () => {
+      mapCard.classList.toggle("expanded");
+      toggleMapBtn.textContent = mapCard.classList.contains("expanded")
+        ? "Réduire"
+        : "Agrandir";
+      map.invalidateSize();
+    });
+
+    setInterval(() => { if (autoGps.checked) refreshGps(); }, 2000);
+
+    map.on("click", (e) => {
+      selectedTarget = [e.latlng.lat, e.latlng.lng];
+      if (!selectedTargetMarker) {
+        selectedTargetMarker = L.marker(selectedTarget).addTo(map);
+      } else {
+        selectedTargetMarker.setLatLng(selectedTarget);
+      }
+      targetInfo.textContent = `Point: ${selectedTarget[0].toFixed(6)}, ${selectedTarget[1].toFixed(6)}`;
+    });
+
+    clearTargetBtn.addEventListener("click", () => {
+      selectedTarget = null;
+      if (selectedTargetMarker) {
+        map.removeLayer(selectedTargetMarker);
+        selectedTargetMarker = null;
+      }
+      targetInfo.textContent = "Point: aucun";
+    });
+
+    loadBoats();
+    refreshGps();
+    window.addEventListener("resize", updateLayout);
+  </script>
+</body>
+</html>

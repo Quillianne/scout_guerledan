@@ -26,7 +26,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = "beautiful_replay_site.urls"
+ROOT_URLCONF = "web_interface_app.urls"
 
 TEMPLATES = [
     {
@@ -44,8 +44,8 @@ TEMPLATES = [
     }
 ]
 
-WSGI_APPLICATION = "beautiful_replay_site.wsgi.application"
-ASGI_APPLICATION = "beautiful_replay_site.asgi.application"
+WSGI_APPLICATION = "web_interface_app.wsgi.application"
+ASGI_APPLICATION = "web_interface_app.asgi.application"
 
 DATABASES = {
     "default": {

@@ -85,7 +85,7 @@ def main():
     mav2.arm_disarm(True)
     mav3.arm_disarm(True)
     start_time = time.time()
-    duration = 100.0  # secondes
+    duration = 1000.0  # secondes
 
     coordsA = []
     coordsB = []
@@ -134,8 +134,8 @@ def main():
     print("[Boat3] Suivi GPS terminé, moteurs arrêtés, retour au ponton.")
 
 
-    np.save("coordsA.npy", np.array(coordsA))
-    np.save("coordsB.npy", np.array(coordsB))
+    #np.save("coordsA.npy", np.array(coordsA))
+    #np.save("coordsB.npy", np.array(coordsB))
     # retour lobby
     #nav2.return_home()
     #nav3.return_home()
