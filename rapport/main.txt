@@ -1,0 +1,19 @@
+Le rapport sera rempli avec:
+
+
+1. probleme.tex - On explique le problème, sa modélisation (contexte et objectif de prérapport/interval.tex) et on y ajoute explication du matériel utilisé (3 blueboat, 1 base station) -> kiks/ewen
+
+2. blueboat.tex - Explication de ce qu'il a été fait sur les blueboat pour répondre à l'objectif -> ewen
+
+3. bblib.tex - Explication du code créé pour communiquer avec les bateaux afin de pouvoir avoir une base fonctionnel et adapté à tous les cas d'usage pour faire le projet (bblib, utilisation de mavlinkrest plutot que mavlink et boat_control_gui.py qui existe grâce à bblib) + test de la première semaine de formation -> aurele
+
+4. interval.tex - Explication de l'algorithme de positionnement (Prédiction par contracteurs équivalents, Contracteurs de distance, Implémentation de l’algorithme de localisation dans prérapport/interval.tex) et ajouter aussi le problème de singularité et comment l'éviter théoriquement -> kiks
+
+5. tests.tex - Explication de la web_interface avec les fonctionnalités et vérification simulation puis réel pour valider l'algorithme ainsi que la théorie pour casser la singularité -> kiks
+
+6. results.tex - Résultats et conclusion
+
+main.tex -> mets tous en commun en intégrant de manière dynamique les autres tex
+
+J'ai déja mis pas mal d'images dans le dossier rapport/images si jamais
+

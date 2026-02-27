@@ -5,7 +5,7 @@ Test simulation with three fake boats in triangle
 import math
 import time
 import matplotlib.pyplot as plt
-from codac import Interval
+from codac import IntervalVector
 from utils.fleet_prediction import FleetPredictor
 
 # ----------------------------------------------------------------------------
@@ -25,7 +25,7 @@ GPS_UNCERTAINTY = 0.
 
 INIT_UNCERTAINTY = 1.0
 
-N_STEPS = 1050
+N_STEPS = 1550
 
 
 # ----------------------------------------------------------------------------
