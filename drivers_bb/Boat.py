@@ -9,9 +9,11 @@ def sawtooth(angle):
     return 2 * np.arctan(np.tan(angle / 2))
 
 class Boat:
-    def __init__(self, ip_addr):
-        self._num = int(ip_addr[-1])
+    def __init__(self, ip_addr, mothership = None):
+        self._num = int(ip_addr[-2]) - 5
+        print(f" Boat ip : {ip_addr}; Boat num : {self._num}")
         self._bb = mavutil.mavlink_connection(ip_addr)
+        self._mothership = mothership
         msg = None
         while not msg:
             self._bb.mav.ping_send(
@@ -44,11 +46,14 @@ class Boat:
             print(f'Heading : {self._imu.get_yaw() * 180 / np.pi}')
             err = sawtooth(target_heading - self._imu.get_yaw())
             print(f"Computed error : {err}")
-            steer = 300 * err
+            steer = 0 #- 300 * err
             self._motors.send_com(200, steer)
             dist = np.linalg.norm(A - M)
             print(f"Distance to target : {dist}")
         print("Target reached.")
+
+    def get_state(self):
+        return self._gps.get_pos_cart(), self._imu.get_yaw(), self._gps.get_SOG()
 
     def formation_nav_GPS(self):
         Kp = 100
@@ -59,12 +64,11 @@ class Boat:
         elif self._num == 3:
             shift = np.array([[7, -3]]).T
         else:
+            print("Boat isn't a follower!")
             return
         list_err = []
         list_timestamp = []
-        Ms = None
-        yaw_ms = None
-        speed_ms = None
+        Ms, yaw_ms, speed_ms = self._mothership.get_state()
         R_ms = np.array([[np.cos(yaw_ms), -np.sin(yaw_ms)],
                          [np.sin(yaw_ms), np.cos(yaw_ms)]])
         target_pos = Ms + R_ms @ shift
@@ -86,7 +90,6 @@ class Boat:
         throtle = 200 + Kp * err + Kd * err_der + Ki * err_int
         self._motors.send_com(throtle, steer)
 
-
     def __exit__(self, exc_type, exc_value, traceback):
         del (self._motors)
         del (self._gps)
@@ -100,8 +103,10 @@ class Boat:
         self._bb.close()
 
 if __name__ == "__main__":
-    boat = Boat("udpin:0.0.0.0:14552")
-    boat.reach_point((48.199047, -3.014776))
-
-
-
+    boat1 = Boat("tcp:127.0.0.1:5763")
+    boat1.reach_point((48.197005, -3.016328))
+    # boat2 = Boat("tcp:127.0.0.1:5773", mothership= boat1)
+    # boat3 = Boat("tcp:127.0.0.1:5783", mothership= boat1)
+    # while True:
+    #     boat2.formation_nav_GPS()
+    #     boat3.formation_nav_GPS()

@@ -30,6 +30,14 @@ bb.wait_heartbeat()
 
 #the_connection.mav.heartbeat_send(mavutil.mavlink.MAV_TYPE_GCS, mavutil.mavlink.MAV_AUTOPILOT_INVALID, 0, 0, 0)
 print("Heartbeat from system (system %u component %u)" % (bb.target_system, bb.target_component))
+
+bb.mav.set_mode_send(
+    bb.target_system,
+    mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+    0  # MANUAL
+)
+
+
 bb.mav.command_long_send(
     bb.target_system,
     bb.target_component,
@@ -44,9 +52,9 @@ print('Armed!')
 print("Starting motors...")
 bb.mav.rc_channels_override_send(bb.target_system,
                                  bb.target_component,
-                                 1550,
-                                 0,
                                  1500,
+                                 0,
+                                 1600,
                                  0,
                                  0,
                                  0,
