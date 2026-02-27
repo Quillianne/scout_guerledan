@@ -1,0 +1,300 @@
+% Définition de la forme quelconque (un "blob") pour réutilisation.
+% On définit des coordonnées polaires (angle:rayon) reliées par une courbe lisse.
+\def\blobshape{ plot [smooth cycle, tension=0.8] coordinates {
+    (0:1.5) (45:1.2) (90:1.6) (135:1.1) (180:1.4) (225:1.7) (270:1.0) (315:1.5)
+} }
+
+% ============================================================
+% Fonctions utilitaires pour le pavage (SIVIA)
+% ============================================================
+\pgfmathdeclarefunction{normangle}{1}{\pgfmathparse{mod(#1,360) + (mod(#1,360) < 0 ? 360 : 0)}}
+\pgfmathdeclarefunction{getradius}{1}{\pgfmathparse{
+    (normangle(#1) < 45)  ? 1.5 + (normangle(#1)/45)*(1.2-1.5) : (
+    (normangle(#1) < 90)  ? 1.2 + ((normangle(#1)-45)/45)*(1.6-1.2) : (
+    (normangle(#1) < 135) ? 1.6 + ((normangle(#1)-90)/45)*(1.1-1.6) : (
+    (normangle(#1) < 180) ? 1.1 + ((normangle(#1)-135)/45)*(1.4-1.1) : (
+    (normangle(#1) < 225) ? 1.4 + ((normangle(#1)-180)/45)*(1.7-1.4) : (
+    (normangle(#1) < 270) ? 1.7 + ((normangle(#1)-225)/45)*(1.0-1.7) : (
+    (normangle(#1) < 315) ? 1.0 + ((normangle(#1)-270)/45)*(1.5-1.0) : 
+                            1.5 + ((normangle(#1)-315)/45)*(1.5-1.5)
+    ))))))))
+}}
+\pgfmathdeclarefunction{checkinside}{2}{\pgfmathparse{
+    (sqrt(#1*#1+#2*#2) < getradius(atan2(#2,#1)) - 0.15) ? 1 :
+    ((sqrt(#1*#1+#2*#2) > getradius(atan2(#2,#1)) + 0.15) ? -1 : 0)
+}}
+
+% ============================================================
+% Pavage SIVIA (macro)
+% ============================================================
+\def\drawSiviaPavage#1#2{
+    % #1 = couleur, #2 = opacité
+    \foreach \x in {-2.4, -1.6, ..., 2.4} {
+        \foreach \y in {-2.4, -1.6, ..., 2.4} {
+            \pgfmathparse{int(checkinside(\x+0.4, \y+0.4))}
+            \let\state\pgfmathresult
+            \ifnum\state=1
+                \draw[draw=#1!80!black, fill=#1!20, fill opacity=#2, thin] (\x,\y) rectangle ++(0.8,0.8);
+            \else
+                \foreach \xx in {0, 0.4} {
+                    \foreach \yy in {0, 0.4} {
+                        \pgfmathparse{int(checkinside(\x+\xx+0.2, \y+\yy+0.2))}
+                        \let\stateMed\pgfmathresult
+                        \ifnum\stateMed=1
+                             \draw[draw=#1!80!black, fill=#1!20, fill opacity=#2, thin] (\x+\xx,\y+\yy) rectangle ++(0.4,0.4);
+                        \fi
+                        \ifnum\stateMed=0
+                            \foreach \xxx in {0, 0.2} {
+                                \foreach \yyy in {0, 0.2} {
+                                     \pgfmathparse{int(checkinside(\x+\xx+\xxx+0.1, \y+\yy+\yyy+0.1))}
+                                     \let\stateSmall\pgfmathresult
+                                     \ifnum\stateSmall>-1
+                                        \draw[draw=#1!80!black, fill=#1!20, fill opacity=#2, very thin] (\x+\xx+\xxx,\y+\yy+\yyy) rectangle ++(0.2,0.2);
+                                     \fi
+                                }
+                            }
+                        \fi
+                    }
+                }
+            \fi
+        }
+    }
+}
+
+
+    % --- 2. Macro pour dessiner un bateau complet ---
+    % Arguments : {Position}{Angle (0=Nord)}{Nom du noeud}{Couleur}{Label Bateau}{Label Vitesse}{Label Cap}{Label Box}
+    \newcommand{\drawBoat}[8]{
+        \begin{scope}[shift={(#1)}]
+            % A. Bounding Box (Axis Aligned)
+            % On dessine un rectangle centré sur la position
+            \draw[bbox] (-1.0,-1.0) rectangle (1.0,1.0);
+            \node[gray!60!black, anchor=north east] at (2.3,-0.8) {\small #8};
+
+            % B. Axe de référence (Nord) pour l'angle theta
+            \draw[dashed, thin, gray] (0,0) -- (0,1.5) coordinate (North);
+
+            % C. Vecteur Vitesse
+            % On calcule les coordonnées du vecteur vitesse
+            \draw[velocity, color=#4!70!black] (0,0) -- (#2:1.8) node[anchor=south west] {#6};
+            
+            % D. Arc pour Theta (Cap)
+            % On dessine l'arc entre le Nord et le vecteur vitesse
+            \draw[->, thin, color=#4!80!black] (0,1) arc (90:#2:1) node[midway, anchor=south, font=\scriptsize] {#7};
+
+            % E. Le Bateau lui-même
+            % On le tourne selon l'angle
+            \node[boat=#4, rotate=#2-90] (#3) at (0,0) {};
+            
+            % Label du bateau (au centre ou à côté)
+            \node[font=\bfseries, color=#4!50!black, yshift=-1.5cm] at (0,0) {#5};
+        \end{scope}
+    }
+
+
+% ============================================================
+% Schéma 1 : prédiction simple (forme pleine)
+% ============================================================
+\newcommand{\SchemaPredictionSimple}{%
+\begin{tikzpicture}[>=Stealth]
+
+    % --- Configuration des positions ---
+    % Centre de la première forme (en bas à droite)
+    \coordinate (Pos1) at (0, 2);
+    % Centre de la deuxième forme (en haut à gauche)
+    \coordinate (Pos2) at (5, 5);
+
+    % --- Dessin de la première forme C_{S1}(t-1) ---
+    \begin{scope}[shift={(Pos1)}]
+        % On dessine la forme avec un remplissage léger bleu
+        \draw[thick, fill=blue!10, draw=blue!50!black] \blobshape;
+        % Le label au centre
+        \node at (0,0) {\large $C_{S1}(t-1)$};
+
+        % On définit un point d'ancrage sur la frontière "haut-gauche" de cette forme pour le départ de la flèche.
+        % (135 degrés est la direction haut-gauche, 1.2 est un rayon approximatif vers le bord)
+        \coordinate (StartArrow) at (45:1.0);
+    \end{scope}
+
+
+    % --- Dessin de la deuxième forme C_{S1}(t) ---
+    % On shift à la nouvelle position ET on applique une échelle (scale=1.4 pour agrandir)
+    \begin{scope}[shift={(Pos2)}, scale=1.4]
+        % On dessine la MÊME forme, avec un remplissage léger rouge
+        \draw[thick, fill=red!10, draw=red!50!black] \blobshape;
+
+        % Le label au centre. Note : comme on est dans un scope agrandi,
+        % le texte serait aussi agrandi. On applique l'échelle inverse pour garder la taille du texte normale.
+        \node[scale=1/1.4] at (0,0) {\large $C_{S1}(t)$};
+
+        % On définit un point d'ancrage sur la frontière "bas-droite" pour l'arrivée de la flèche.
+        % (-45 degrés est la direction bas-droite)
+        \coordinate (EndArrow) at (-155:1.3);
+    \end{scope}
+
+
+    % --- La flèche ---
+    % On relie les points d'ancrage définis dans les scopes
+    \draw[->, ultra thick, color=black!70] (StartArrow) -- node[midway, above left, font=\bfseries] {d} (EndArrow);
+
+\end{tikzpicture}
+}
+
+% ============================================================
+% Schéma 2 : approche non récursive (pavage + translation)
+% ============================================================
+\newcommand{\SchemaPredictionNonRecursive}{%
+\begin{tikzpicture}[>=Stealth]
+
+    % --- Positions ---
+    \coordinate (Pos1) at (0, 2);
+    \coordinate (Pos2) at (6, 5);
+
+    % --- FORME 1 : t-1 (forme + pavage transparent) ---
+    \begin{scope}[shift={(Pos1)}]
+        \draw[thick, blue!80!black] \blobshape;
+        \drawSiviaPavage{blue}{0.3}
+        \node[blue!90!black, fill=white, fill opacity=0.5, text opacity=1, rounded corners] at (0,0) {\large $C_{S1}(t-1)$};
+        \node (LabelPave) at (0, -2.5) {\scriptsize $\text{pave}(C_{S1}(t-1), \varepsilon)$};
+        \draw[->, thin, gray] (LabelPave) -- (0, -1.6);
+        \coordinate (StartArrow) at (45:1.4);
+    \end{scope}
+
+    % --- FORME 2 : t (pavage opaque agrandi) ---
+    \begin{scope}[shift={(Pos2)}, scale=1.4]
+        \drawSiviaPavage{red}{0.9}
+        \node[scale=1/1.4, fill=white, fill opacity=0.7, text opacity=1, rounded corners, inner sep=2pt] at (0,0) {\large $C_{S1}(t)$};
+        \coordinate (EndArrow) at (-145:1.6);
+    \end{scope}
+
+    % --- Flèche d ---
+    \draw[->, ultra thick, color=black!70] (StartArrow) -- node[pos=0.5, above left, font=\bfseries] {d} (EndArrow);
+
+\end{tikzpicture}
+}
+
+% ============================================================
+% Schéma 3 : intersection C_{S1}(t) ∩ C_{d01} ∩ C_{d12}
+% (porté depuis test.tex)
+% ============================================================
+\newcommand{\SchemaIntersection}{%
+\begin{tikzpicture}[>=Stealth]
+
+    % --- Configuration des Centres et Rayons ---
+    \coordinate (CenterBlue) at (-5., -5.);
+    \coordinate (CenterGreen) at (3.5, -1.5);
+
+    % Rayons (Largeur augmentée à 1.2)
+    \def\RBlueMin{6.7}
+    \def\RBlueMax{7.9}
+    
+    \def\RGreenMin{3.4}
+    \def\RGreenMax{4.6}
+
+    % --- 1. Dessin du Blob Rouge (Fond) ---
+    \draw[thick, fill=red!5, draw=red!80!black] \blobshape;
+    \node[red!80!black] at (-2.0, -1.4) {\Large $C_{S1}(t)$};
+
+    % --- 2. Intersection TRIPLE (Logique Robuste) ---
+    \begin{scope}[even odd rule]
+        % A. Clip du blob
+        \clip \blobshape;
+
+        % B. Clip de la couronne Bleue (Deux cercles dans le même clip = anneau)
+        \clip (CenterBlue) circle (\RBlueMax) (CenterBlue) circle (\RBlueMin);
+
+        % C. Remplissage de la zone restante avec la couronne Verte
+        \fill[red!60!black, opacity=0.8] 
+            (CenterGreen) circle (\RGreenMax) (CenterGreen) circle (\RGreenMin);
+    \end{scope}
+
+    % --- 3. Dessin des contours (Arcs visibles) ---
+    % Arcs Bleus (C_d01)
+    \begin{scope}
+        \clip (-2.5,-2.5) rectangle (2.5,2.5);
+        \draw[very thick, blue] (CenterBlue) circle (\RBlueMin);
+        \draw[very thick, blue] (CenterBlue) circle (\RBlueMax);
+    \end{scope}
+    \node[blue] at (-0.8, 2.1) {\large $C_{d_{01}}$};
+
+    % Arcs Verts (C_d12)
+    \begin{scope}
+        \clip (-2.5,-2.5) rectangle (2.5,2.5);
+        \draw[very thick, green!60!black] (CenterGreen) circle (\RGreenMin);
+        \draw[very thick, green!60!black] (CenterGreen) circle (\RGreenMax);
+    \end{scope}
+    \node[green!60!black] at (0.9, 1.4) {\large $C_{d_{12}}$};
+
+    % --- 4. Flèche et Label ---
+    \node[right, draw=black!20, fill=white, fill opacity=0.9, rounded corners, inner sep=3pt] (LabelInter) at (3, 0) 
+        {\small $C_{S1}(t) \cap C_{d_{01}} \cap C_{d_{12}}$};
+    \draw[->, thick, black] (LabelInter.west) -- (0.2, 0.5);
+
+\end{tikzpicture}
+}
+
+\newcommand{\SchemaModelisation}{%
+\begin{tikzpicture}[
+    >=Stealth, % Style de flèche
+    % Style pour les bateaux (triangle simple)
+    boat/.style={
+        isosceles triangle,
+        isosceles triangle apex angle=45,
+        draw=##1!80!black,
+        fill=##1!20,
+        minimum height=1.2cm,
+        shape border rotate=90, % Pointe vers le haut par défaut
+        inner sep=0pt
+    },
+    % Style pour les bounding boxes
+    bbox/.style={
+        draw=gray!80,
+        dashed,
+        thick,
+        fill=gray!5,
+        fill opacity=0.5
+    },
+    % Style pour les vecteurs vitesse
+    velocity/.style={
+        ->,
+        ultra thick,
+        shorten <=2pt
+    },
+    % Style pour les mesures de distance
+    measure/.style={
+        <->,
+        thick,
+        color=blue!70!black
+    }
+]
+
+    % --- 1. Définition des positions ---
+    \coordinate (PosMS0) at (0, 0);     % Bateau mère en bas
+    \coordinate (PosS1)  at (-4, 5);    % Scout 1 en haut à gauche
+    \coordinate (PosS2)  at (4, 5.5);   % Scout 2 en haut à droite
+
+    % --- 3. Dessin des trois bateaux ---
+
+    % MS0 (Bateau Mère) - Cap légèrement vers la droite (80 degrés)
+    \drawBoat{PosMS0}{120}{NodeMS0}{blue}{MS0}{$v_{MS0}$}{$\theta_{MS0}$}{$bb_{MS0}$}
+
+    % S1 (Scout 1) - Cap vers le nord-ouest (110 degrés)
+    \drawBoat{PosS1}{125}{NodeS1}{red}{S1}{$v_{S1}$}{$\theta_{S1}$}{$bb_{S1}$}
+
+    % S2 (Scout 2) - Cap vers le nord-est (60 degrés)
+    \drawBoat{PosS2}{115}{NodeS2}{green}{S2}{$v_{S2}$}{$\theta_{S2}$}{$bb_{S2}$}
+
+
+    % --- 4. Dessin des Distances (Double flèches) ---
+    
+    % d01 : Entre MS0 et S1
+    \draw[measure] (PosMS0) -- node[midway, left, font=\large, fill=white, inner sep=1pt] {$d_{01}$} (PosS1);
+
+    % d20 : Entre MS0 et S2 (Note : d20 ou d02, c'est symétrique, je mets d20 comme demandé)
+    \draw[measure] (PosMS0) -- node[midway, right, font=\large, fill=white, inner sep=1pt] {$d_{20}$} (PosS2);
+
+    % d12 : Entre S1 et S2
+    \draw[measure] (PosS1) -- node[midway, above, font=\large, fill=white, inner sep=1pt] {$d_{12}$} (PosS2);
+
+\end{tikzpicture}
+}

@@ -13,3 +13,4 @@ boat_control_config.json
 web_interface/db.sqlite3
 coordsA.npy
 coordsB.npy
+*.synctex.gz
