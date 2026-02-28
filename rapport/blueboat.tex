@@ -1,0 +1,57 @@
+\section{Blueboat}
+
+À défaut d'avoir des AUV à disposition, il a été décidé avec nos encadrants d'utiliser des blueboats pour réaliser notre projet. Cette partie vise à présenter ces robots, expliquer leur fonctionnement, et permettre à de futurs élèves d'apprendre à les connaître et de les prendre en main facilement.
+
+\subsection{Présentation}
+
+Les BlueBoats (voir Figure \ref{fig:blueboat}) sont des drones de surface développés par la société Blue Robotics\footnote{\url{https://www.bluerobotics.com}}. Ces robots sont des bicoques équipés de deux propulseurs, d'une carte Raspberry Pi 4 couplée à une carte Navigator, et de divers capteurs, les deux plus notables étant un GPS et une IMU. Ces robots ont l'avantage d'offrir un bon rapport qualité-prix et d'être particulièrement modulable, les rendant adaptés à une large gamme de missions.
+Les BlueBoats disposent de leur propre OS BlueOS. Ce dernier permet de paramétrer simplement le robot, de communiquer avec lui via le protocole Mavlink, de le contrôler via un firmware comme Ardupilot, mais aussi d'installer certaines librairies utiles dessus comme des applications pour utiliser certains capteurs ou des interfaces ROS/Mavros offrant d'autres solutions que le passage par MavLink pour contrôler le bateau. L'utilisation de firmware comme ardupilot permet aussi de contrôler le robot directement sur son ordinateur grâce à des logiciels tels que QGround Control ou MissionPlanner. La Figure \ref{fig:archi_blueboat} présente de façon simplifiée les différentes composantes logicielles liées au BlueBoat et leurs interactions.
+Afin de se connecter facilement aux BlueBoats où que l'ont soit, BlueRobotics vend aussi des "Base Station" (voir Figure \ref{fig:base_station}), qui sont des boîtiers équipés d'une antenne amovible permettant de créer un réseau WiFi local. Pöur obtenir une portée plus importante, l'antenne de la Base Station peut être remplacée par une antenne directionnelle.
+
+\begin{figure}[h]
+        \centering
+        \includegraphics[width=0.5\linewidth]{images/blueboat.png}
+        \caption{BlueBoat}
+        \label{fig:blueboat}
+    \end{figure}
+
+\begin{figure}[h]
+        \centering
+        \includegraphics[width=0.8\linewidth]{images/archi.png}
+        \caption{Architecture logicielle simplifiée du BlueBoat présentée sur le site de BlueRobotics\footnote{\url{https://blueos.cloud/docs/latest/usage/overview/}}}
+        \label{fig:archi_blueboat}
+    \end{figure}
+
+\subsection{Prise en main}
+
+\begin{figure}[h]
+        \centering
+        \includegraphics[width=0.5\linewidth]{images/base_station.png}
+        \caption{Base Station}
+        \label{fig:base_station}
+    \end{figure}
+
+\subsection{Prise en main}
+
+    Les instructions pour prendre en main les robots sont disponibles sur le site de Blue Robotics : \url{https://docs.bluerobotics.com/blueboat/}. Elles consistent globalement dans l'ordre en le paramétrage de la Base Station, puis celui du routeur WiFi du BlueBoat et enfin de BlueOS. Il nous a été demandé de respecter quelques conventions propres à l'ENSTA et différentes de celles porposées par Blue Roboticsconcernant les adresses IP des différents composants sur le réseau de la Base Station, mais cela a peu d'impact sur la procédure de prise en main des robots. Les conventions sont les suivantes:
+    \begin{itemize}
+        \item L'adresse IP de la Base Station doit être 192.168.2.1
+        \item L'adresse IP du routeur WiFi du BlueBoat doit être 192.168.2.10X, avec X le numéro du BlueBoat
+        \item L'adresse IP de la carte Raspberry Pi du BlueBoat doit être 192.168.2.20X, avec X le numéro du BlueBoat
+        \item L'ordinateur de contrôle doit avoir une adresse IP de la forme 192.168.2.11X .
+    \end{itemize}
+
+    Dans notre cas, puisque nous utilisons plusieurs robots à la fois, il faut changer les identifiants des robots dans le réseau MavLink via le paramètre SYSID_THISMAV. [//TODO : revoir l'histoire des GCS UDPIN IP]
+
+    Afin de pouvoir reprendre le contrôle manuel du BlueBoat même en cas de perte de connexion à la Base Station, il a été décidé d'installer sur ceux-ci des récepteur RF [//TODO : demander le modèle exact des récepteurs et télécommandes à Le Bars] permettant l'utilisation de télécommandes RC. Il était déjà possible, via QGroundControl, de contrôler les robots avec des joysticks connectés à l'ordinateur mais cette solution offrait une portée moindre. L'ajout d'une télécommande aux Blueboats ne nécessite pas d'ajout de lignes de codes ou l'installation d'une extension particulière sur BlueOS mais simplement le changement de certains paramètres, en particulier les paramètres RCX_FUNCTION qui attribue à chaque channel RC un rôle, tel que prendre le contrôle ("RC_OVERRIDE_ON"), armer ou désarmer les moteurs, contrôler la poussée ou la rotation, etc. Les paramètres choisis dans notre cas sont les suivants : [//TODO : chercher paramètres sur les BlueBoats].
+
+\subsection{Simulation Ardurover}
+
+\subsection{Observations sur le comportement des BlueBoats}
+
+    Les test des BlueBoats, que ce soit via des algorithmes ou un contrôle à la télécommande, ont mis en lumière les difficultés à contrôler le robot. En effet, si la commande envoyée au robot correspond à un changement de direction pur (exemple : commande de + X à droite et -X à gauche), le moucement du robot ne correspondra lui pas à une rotation pure, mais à une rotation accompagnée d'une vitesse vers l'avant. Il semble possible d'effectuer une rotation pure en donnant en plus au robot une commande vers l'arrière, mais nous n'avons pas déterminé si cette commande était constante ou dépendait de la rotation demandée. 
+    Une calibration de l'IMU est aussi nécessaire avant d'utiliser le robot. Cette dernière peut se faire via QGC (QGround Control), en calibrant dans un premier lieu l'accéléromètre en mettant le robot dans des positions particulières, puis le magnétomètre en lui faisant effectuer des mouvements aléatoires dans toues les directions.
+
+\subsection{Autres remarques et conseils}
+
+    Il est possible d'utiliser ROS et MAVROS 1 ou 2 pour contrôler les BlueBoats, et ce grâce à des extensions disponibles sur BlueOS. L'extension ROS a été crée par BlueRobotics et est disponible quelle que soit la version de l'OS tant que cette dernière est suffisament récente. Cependant, l'extension ROS2 est elle compatible uniquement avec la version 64 bits de BlueOS (la version par défaut étant une version 32 bits). La dernière version 64 bits de Blue OS au moment de l'écriture de ces lignes (28/02/2026) est accessible via ce lien : \url{https://github.com/bluerobotics/BlueOS/releases/download/1.5.0-beta.20/BlueOS-raspberry-linux-arm64-v8-bookworm-pi5.zip}\footnote{\url{https://blueos.cloud/docs/stable/usage/installation/} propose les dernières versions 32 et 64 bits de BlueOS. Bien que le nom du fichier comporte "pi5", cette version de l'OS est bien compatible avec une Raspberry Pi 4, ou tout du moins les modèles de Raspberry Pi 4 présent par défaut dans les BlueBoats.}. Il suffit pour l'installer d'extraire le fichier .img contenu dans le fichier zip et de le flasher sur une carte microSD à l'aide par exemple de Raspberry Pi Imager\footnote{\url{https://www.raspberrypi.com/software/}} ou de Balena Etcher\footnote{\url{https://www.balena.io/etcher/}}. L'installation de l'extension ROS2 peut alors théoriquement se faire directement sur la nouvelle version de BlueOS 64bits, mais il a été constaté que BlueOS imposait un timeout de 120s sur les téléchargements et installations, et ROS2 étant assez lourd et donc long à télécherger et installer, il n'a donc pas été possible pour nous de l'installer de cette manière. Il est cependant possible d'installer manuellement l'extension via le terminal sur la Raspberry PI en suivant les instructions données à \url{https://github.com/itskalvik/blueos-ros2}.
