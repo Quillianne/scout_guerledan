@@ -1,0 +1,149 @@
+\section{Algorithme intervalle de localisation}
+
+\subsection{Prédiction par contracteurs équivalents}
+
+Un contracteur réduit un ensemble de positions possibles en appliquant une contrainte (par exemple une mesure de distance ou une boîte GPS). On maintient un contracteur équivalent représentant les positions compatibles avec les contraintes accumulées.
+
+Considérons le contracteur équivalent $C_{S1}(t-1)\subset\mathbb{R}^2$ du bateau \texttt{S1} à l'instant $t-1$. Le déplacement entre $t-1$ et $t$ est modélisé par
+$$d = \begin{pmatrix}dx\\dy\end{pmatrix},$$
+et la fonction arrière (\texttt{f\_back} dans le code) est
+$$f_{\mathrm{back}}:\mathbb{R}^2\to\mathbb{R}^2,\qquad f_{\mathrm{back}}(x)=x-d.$$
+
+Dans notre modèle, $dx$ et $dy$ sont des intervalles. La préimage s'écrit
+$$f_{\mathrm{back}}^{-1}(C)=\{x\in\mathbb{R}^2\;|\;x-d\in C\},$$
+et ainsi :
+$$C_{S1}(t)= f_{\mathrm{back}}^{-1}\bigl(C_{S1}(t-1)\bigr).$$
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.72\linewidth]{schema_prediction_simple.pdf}
+\caption{Prédiction : translation et inflation de l'ensemble des positions.}
+\end{figure}
+
+En termes de contracteurs, la prédiction s'effectue par
+$$C_{S1}(t)=\mathrm{CtcInverse}\bigl(f_{\mathrm{back}},\;C_{S1}(t-1)\bigr).$$
+
+Une approche non récursive est également utilisée : au lieu de chaîner les contracteurs inverses, on pave $C(t-1)$ puis on utilise ce pavage comme antécédent pour la prédiction à l'instant $t$.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.72\linewidth]{schema_prediction_non_recursive.pdf}
+\caption{Approche non récursive : pavage de $C_{S1}(t-1)$ et translation vers $C_{S1}(t)$.}
+\end{figure}
+
+\subsection{Contracteurs de distance}
+
+Les données d'entrée de correction sont les distances inter-bateaux ($d_{01}, d_{12}, d_{20}$), modélisées par des intervalles, ainsi que les boîtes englobantes des voisins.
+
+Soit $x=(x_0, x_1)$ la position du bateau considéré et $b=(b_x, b_y)$ une position appartenant à la boîte du voisin $B_{\mathrm{neigh}}$. La distance euclidienne est :
+$$f_{\mathrm{dist}}(x)=\sqrt{(x_0-b_x)^2+(x_1-b_y)^2}.$$
+Une mesure de distance reçue sous la forme d'un intervalle $[d_{\min}, d_{\max}]$ induit la contrainte :
+$$f_{\mathrm{dist}}(x) \in [d_{\min}, d_{\max}].$$
+
+En pratique, cette contrainte est traitée avec un contracteur inverse $\mathrm{CtcInverse}(f_{\mathrm{dist}}, [d_{\min}, d_{\max}])$.
+
+Dans le cas où \texttt{S1} dispose de deux mesures ($d_{01}$ et $d_{12}$), la correction globale est :
+$$C_{S1}(t) \leftarrow C_{S1}(t) \cap \left( C_{d_{01}} \cap C_{d_{12}} \right).$$
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.72\linewidth]{schema_intersection.pdf}
+\caption{Contraction par intersection : $C_{S1}(t) \cap C_{d_{01}} \cap C_{d_{12}}$.}
+\label{fig:schema_intersection}
+\end{figure}
+
+\subsection{Implémentation dans le projet}
+
+L'implémentation est portée par \texttt{utils/fleet\_prediction.py}, qui encapsule :
+\begin{itemize}
+	\item une phase de mouvement (récursive ou non récursive),
+	\item une contrainte GPS sur le bateau mère,
+	\item trois corrections de distances croisées entre les trois bateaux,
+	\item une mise à jour de pavage pour l'affichage et l'analyse.
+\end{itemize}
+
+\medskip
+
+Dans notre cas, les calculs de distance et de déplacement sont construits à partir d'une référence GPS absolue ; cela nous permet de fixer librement les niveaux d'incertitude (\texttt{init\_uncertainty}, \texttt{gps\_uncertainty}, \texttt{dist\_uncertainty}, \texttt{move\_uncertainty}) pour émuler le comportement que l'on aurait avec des capteurs acoustiques, y compris avec des incertitudes plus faibles que l'incertitude GPS observée en pratique. Cette approximation reste cohérente pour nos tests car toute la chaîne est ancrée sur le GPS : au pire, l'ensemble des boîtes contient la position GPS (même s'il ne contient pas toujours la position réelle exacte). Le point essentiel est que l'erreur GPS par rapport au réel agit ici surtout comme un biais quasi constant et ne s'accumule pas au cours du temps (pas de dérive cumulative). Les paramètres \texttt{precision} et \texttt{margin} contrôlent ensuite surtout le rendu (finesse du pavage et fenêtre d'affichage).
+
+\subsection{Pseudocode de l'algorithme}
+
+\subsubsection*{Version récursive (vue locale d'un éclaireur)}
+\noindent
+\begin{algo-box}[label=alg:recursive]{BoatPredictionRecursive (Vue locale S1)}
+\begin{algorithmic}[1]
+		\State \textbf{Initialisation:} $C_{S1} \gets \mathrm{CtcWrapper}(\text{initial box})$
+		\Statex
+		\For{chaque pas acoustique $t$}
+				\LComment{1. Phase de Prédiction (Dead-Reckoning)}
+				\State $d_{S1} \gets \Call{IntegrateAndFilter}{cap, speed, S1}$
+				\State Définir $f_{\mathrm{back},S1}(x) \gets x - d_{S1}$
+				\State $C_{S1} \gets \mathrm{CtcInverse}(f_{\mathrm{back},S1}, C_{S1})$
+				\Statex
+				\LComment{2. Phase de Communication}
+				\State \textbf{Envoyer} $bb_{S1}$ (IntervalVector) aux voisins
+				\State \textbf{Recevoir} $bb_{MS0}$, $bb_{S2}$
+				\State \textbf{Lire} les distances acoustiques $d_{01}, d_{12}$
+				\Statex
+				\LComment{3. Phase de Correction (Contraction)}
+				\State \textcolor{gray}{\itshape \% Construction des contracteurs de distance}
+				\State $C_{d01} \gets \mathrm{CtcInverse}\bigl(f_{\mathrm{dist}}(\cdot,MS0),\;d_{01}\bigr)$
+				\State $C_{d12} \gets \mathrm{CtcInverse}\bigl(f_{\mathrm{dist}}(\cdot,S2),\;d_{12}\bigr)$
+				\Statex
+				\State \textcolor{gray}{\itshape \% Intersection et mise à jour}
+				\State $C_{\mathrm{dist},S1} \gets C_{d01} \cap C_{d12}$
+				\State $C_{S1} \gets C_{S1} \cap C_{\mathrm{dist},S1}$
+				\Statex
+				\If{gps box disponible}
+						\State $C_{S1} \gets C_{S1} \cap \mathrm{CtcWrapper}(gps\_box)$
+				\EndIf
+		\EndFor
+\end{algorithmic}
+\end{algo-box}
+
+\subsubsection*{Version non récursive (avec pavage)}
+\noindent
+\begin{algo-box}[label=alg:non_recursive]{BoatPredictionNonRecursive (Pavage)}
+\begin{algorithmic}[1]
+		\State \textbf{Initialisation:} $C_{S1} \gets \mathrm{CtcWrapper}(\text{initial box})$
+		\State \colorbox{yellow!20}{$pavage\_S1 \gets \mathrm{SIVIA}(C_{S1})$} \Comment{Pavage initial}
+		\Statex
+		\For{chaque pas acoustique $t$}
+				\LComment{1. Prédiction via Pavage}
+				\State $d_{S1} \gets \Call{IntegrateAndFilter}{S1}$
+				\State Définir $f_{\mathrm{back},S1}(x) \gets x - d_{S1}$
+				\State \colorbox{yellow!20}{$C_{S1} \gets \mathrm{CtcInverse}(f_{\mathrm{back},S1},\;\mathrm{CtcWrapper}(pavage\_S1))$}
+				\Statex
+				\LComment{2. Communication \& Lecture}
+				\State \textbf{Envoyer} $bb_{S1}$; \textbf{Recevoir} $bb_{MS0}, bb_{S2}$; \textbf{Lire} $d_{01}, d_{12}$
+				\Statex
+				\LComment{3. Correction}
+				\State $C_{d01} \gets \mathrm{CtcInverse}\bigl(f_{\mathrm{dist}}(\cdot,MS0),\;d_{01}\bigr)$
+				\State $C_{d12} \gets \mathrm{CtcInverse}\bigl(f_{\mathrm{dist}}(\cdot,S2),\;d_{12}\bigr)$
+				\Statex
+				\State $C_{\mathrm{dist},S1} \gets C_{d01} \cap C_{d12}$
+				\State $C_{S1} \gets C_{S1} \cap C_{\mathrm{dist},S1}$
+				\If{gps box disponible}
+						\State $C_{S1} \gets C_{S1} \cap \mathrm{CtcWrapper}(gps\_box)$
+				\EndIf
+				\Statex
+				\LComment{4. Re-Pavage (Spécifique non-récursif)}
+				\State \colorbox{yellow!20}{$pavage\_S1 \gets \mathrm{SIVIA}(C_{S1})$} \Comment{Mise à jour fine de la forme}
+		\EndFor
+\end{algorithmic}
+\end{algo-box}
+
+\subsection{Problème de singularité et stratégies d'évitement}
+
+Dans notre cas, la singularité observée apparaît lorsque la flotte reste longtemps en configuration triangulaire. Pour chaque scout, l'ensemble de positions possibles devient alors un arc de cercle de plus en plus long. Ce comportement vient de la phase de dead-reckoning : l'incertitude de mouvement est élargie à la fois en longueur et en largeur. La contrainte de distance au bateau mère coupe bien l'épaisseur de cet arc (qui reste globalement bornée), mais ne réduit pas sa longueur. La contrainte issue de l'autre scout ne referme pas non plus l'arc, car l'ensemble de ce second scout s'est lui aussi élargi ; l'intersection reste donc compatible avec une grande longueur d'arc.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.5\linewidth]{schema_singularite.pdf}
+\caption{Singularité observée : en configuration triangulaire maintenue, l'arc d'incertitude des scouts s'allonge au cours du temps.}
+\label{fig:schema_singularite}
+\end{figure}
+
+Dans la pratique du projet, la réduction de la singularité repose sur une variation de géométrie : on évite de conserver trop longtemps la même configuration triangulaire en introduisant des maneouvres d'echappement à l'un des scouts permettant de faire varier les angles de vue et ainsi de réduire la longueur de l'arc d'incertitude.
+
+Ces principes guident les scénarios expérimentaux présentés dans la section de tests, où l'on vérifie que l'algorithme reste exploitable en simulation puis en réel.

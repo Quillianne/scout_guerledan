@@ -1,0 +1,100 @@
+\section{Tests, validation et interface web}
+
+\subsection{Objectif de la campagne de tests}
+
+Cette section documente la validation de l'algorithme intervalle selon un enchaînement progressif :
+\begin{enumerate}
+	\item validation fonctionnelle des briques de communication,
+	\item observation en simulation/rejeu,
+	\item validation en conditions réelles sur les BlueBoats.
+\end{enumerate}
+
+L'objectif est de vérifier à la fois la cohérence logicielle de la chaîne complète et le comportement de l'estimation en présence d'incertitudes réelles (GPS, cap, distances).
+
+\subsection{Interface web de supervision}
+
+Le projet intègre une interface Django (dossier \texttt{web\_interface}) avec trois vues principales :
+\begin{itemize}
+	\item \textbf{Manager de flotte} : configuration des bateaux, visualisation GPS, actions de contrôle ;
+	\item \textbf{Observation intervalles} : exécution pas-à-pas de l'algorithme avec affichage des boîtes et pavages ;
+	\item \textbf{Logs viewer} : rejeu temporel des logs et visualisation des sorties de prédiction.
+\end{itemize}
+
+Les routes API associées (\texttt{/api/boats/*}, \texttt{/api/interval/*}, \texttt{/api/replay/*}, \texttt{/api/logs/*}) permettent d'unifier pilotage, enregistrement, rejeu et analyse.
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.82\linewidth]{interface_web/manager.png}
+	\caption{Vue \textit{Manager de flotte} : configuration des bateaux, état et contrôle.}
+	\label{fig:web_manager}
+\end{figure}
+
+\subsection{Observation de l'algorithme intervalle en ligne}
+
+La page \texttt{/interval/} fournit un mode d'observation en temps réel avec paramètres réglables :
+\begin{itemize}
+	\item \texttt{init\_uncertainty}, \texttt{gps\_uncertainty}, \texttt{dist\_uncertainty}, \texttt{move\_uncertainty},
+	\item précision de pavage et marge d'affichage,
+	\item mode récursif ou non récursif.
+\end{itemize}
+
+À chaque itération, l'endpoint \texttt{/api/interval/step/} retourne :
+\begin{itemize}
+	\item les positions GPS des trois bateaux,
+	\item les boîtes courantes des contracteurs,
+	\item les polygones de pavage des deux éclaireurs.
+\end{itemize}
+
+Cette boucle de visualisation permet de diagnostiquer rapidement les réglages d'incertitude et d'observer la contraction des ensembles en fonction des mesures disponibles.
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.82\linewidth]{interface_web/observer.png}
+	\caption{Vue \textit{Observation intervalles} : boîtes et pavages en temps réel.}
+	\label{fig:web_observer}
+\end{figure}
+
+\subsection{Rejeu de logs et reproductibilité}
+
+La vue \texttt{/logs/} permet de charger un fichier de log, d'appliquer un facteur de sous-échantillonnage et de rejouer l'expérience avec un curseur temporel. Ce mode est utilisé pour :
+\begin{itemize}
+	\item comparer plusieurs jeux de paramètres sur une même trace,
+	\item vérifier la stabilité du pipeline hors conditions terrain,
+	\item produire des figures et analyses reproductibles pour le rapport.
+\end{itemize}
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.82\linewidth]{interface_web/replay.png}
+	\caption{Vue \textit{Replay} : rejeu temporel des logs et analyse des trajectoires.}
+	\label{fig:web_replay}
+\end{figure}
+
+\subsection{Tests de comportement flotte (simulation/terrain)}
+
+Les scripts de test du dépôt couvrent plusieurs scénarios représentatifs :
+\begin{itemize}
+	\item \texttt{test\_multiple\_boat.py} : exécution simultanée de deux bateaux (cap imposé + poursuite),
+	\item \texttt{test\_formation\_triangle.py} : génération de cibles pour maintenir une formation triangulaire,
+	\item \texttt{test\_mavlinkrest.py}, \texttt{test\_load\_config.py}, \texttt{test\_set\_mode\_manual.py} : vérification des briques de communication et de configuration.
+\end{itemize}
+
+La validation est réalisée d'abord avec des données contrôlées (rejeu/simulation), puis avec les données acquises sur les BlueBoats. Cette progression limite les risques opérationnels et facilite l'identification des causes d'erreur.
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.70\linewidth]{test_formation.png}
+	\caption{Exemple de test de formation utilisé pour valider le comportement collectif.}
+	\label{fig:test_formation}
+\end{figure}
+
+\subsection{Validation de l'évitement de singularité}
+
+La stratégie retenue consiste à éviter les géométries dégénérées au niveau des trajectoires et à renforcer la correction par fusion multi-contraintes. En pratique, les scénarios de test ont confirmé les points suivants :
+\begin{itemize}
+	\item lorsque les bateaux restent trop alignés, les ensembles estimés s'étirent et la localisation devient moins discriminante ;
+	\item dès qu'une excitation latérale est introduite (triangle, suivi avec variation de cap), l'intersection des contraintes se resserre ;
+	\item la combinaison distances + boîte GPS du bateau mère + boîtes voisins réduit significativement l'ambiguïté.
+\end{itemize}
+
+Ces observations sont cohérentes avec l'analyse théorique de la section précédente et valident l'approche pratique retenue pour éviter les cas mal conditionnés.

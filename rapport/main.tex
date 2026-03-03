@@ -1,0 +1,58 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{algorithm}
+\usepackage[noEnd=false, indLines=true]{algpseudocodex}
+\usepackage[most]{tcolorbox}
+
+\definecolor{algobg}{RGB}{245,245,245}
+\definecolor{algocomment}{RGB}{80,130,80}
+\definecolor{algokeyword}{RGB}{0,50,120}
+\definecolor{algoline}{RGB}{180,180,180}
+
+\algrenewcommand\algorithmiccomment[1]{\hfill \textcolor{algocomment}{$\triangleright$ \textit{#1}}}
+\algrenewcommand\algorithmicrequire{\textbf{\textcolor{algokeyword}{Entrée:}}}
+\algrenewcommand\algorithmicensure{\textbf{\textcolor{algokeyword}{Sortie:}}}
+\algrenewcommand\textproc{}
+
+\newtcolorbox{algo-box}[2][]{%
+	enhanced,
+	width=\linewidth,
+	colback=white,
+	colframe=algokeyword,
+	boxrule=0.5pt,
+	arc=3pt,
+	title={\textbf{#2}},
+	coltitle=white,
+	attach boxed title to top left={yshift=-2mm, xshift=2mm},
+	boxed title style={colback=algokeyword, sharp corners=south},
+	#1
+}
+
+\graphicspath{{images/}{graphics/}}
+
+\title{Scout Guerlédan\\Rapport de projet}
+\author{Équipe Scout}
+\date{Mars 2026}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+\input{probleme}
+\input{bblib}
+\input{interval}
+\input{tests}
+\input{results}
+
+\end{document}

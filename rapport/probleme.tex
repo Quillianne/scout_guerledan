@@ -1,0 +1,41 @@
+\section{Contexte et objectif}
+
+\subsection{Mise en contexte}
+
+Ce travail vise à localiser trois bateaux coopérant au sein d'une même flotte : un bateau-mère \texttt{MS0}, dont la position absolue (GPS) peut être connue, et deux éclaireurs \texttt{S1} et \texttt{S2} dépourvus de GPS.
+
+Les éclaireurs peuvent ponctuellement mesurer, par acoustique, les distances inter-bateaux :
+$$d_{01},\;d_{12},\;d_{20},$$
+chaque mesure étant entachée d'une incertitude modélisée par des intervalles. Par ailleurs, chaque unité a connaissance, à tout instant, de l'enveloppe de la position de ses voisins sous la forme de boîtes englobantes (\textit{bounding boxes}).
+
+Ils disposent en outre de mesures instantanées de cap et de vitesse, elles aussi incertaines. En intégrant ces mesures entre deux instants, on obtient une estimation du déplacement total avec son incertitude (dead-reckoning).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.78\linewidth]{schema_modelisation.pdf}
+\caption{Modélisation du problème.}
+\label{fig:schema_modelisation}
+\end{figure}
+
+Le cycle d'estimation est alors :
+\begin{itemize}
+	\item \textbf{prédiction :} propager l'ensemble des positions possibles à l'aide du déplacement dead-reckoning ;
+	\item \textbf{correction :} réduire cet ensemble lorsque des mesures acoustiques et/ou GPS sont disponibles, en exploitant les distances mesurées ainsi que les boîtes englobantes des voisins.
+\end{itemize}
+
+\subsection{Objectif scientifique et technique}
+
+L'objectif est de maintenir, pour chaque bateau, un ensemble de positions possibles cohérent avec les mesures disponibles, plutôt qu'une unique position ponctuelle qui oublierait les incertitudes. Cette approche permet de mieux gérer les erreurs de mesure et d'obtenir une estimation plus robuste. Il faudra trouver des méthodes efficaces pour réduire les incertitudes afin de les garder raisonnables.
+
+\subsection{Matériel utilisé}
+
+L'expérimentation repose sur :
+\begin{itemize}
+	\item \textbf{3 BlueBoats} (1 bateau mère + 2 éclaireurs),
+	\item \textbf{1 Base Station} pour le réseau local et le pilotage,
+	\item une station de calcul à terre pour l'orchestration, les logs et l'interface web.
+\end{itemize}
+
+\medskip
+
+Nous n'avons pas réussi à avoir des modems acoustiques permettant de mesurer les distances inter-bateaux, et avons donc simulé ces mesures à l'aide des GPS des BlueBoats, en y ajoutant une incertitude pour modéliser les erreurs de mesure acoustique. Les chapitres suivants détaillent les choix de modélisation, d'algorithmes et de validation qui permettent de résoudre ce problème dans le cadre du projet.
