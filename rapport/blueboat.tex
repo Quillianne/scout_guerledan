@@ -17,10 +17,12 @@ Afin de se connecter facilement aux BlueBoats où que l'ont soit, BlueRobotics v
 
 \begin{figure}[h]
         \centering
-        \includegraphics[width=0.8\linewidth]{images/archi.png}
-        \caption{Architecture logicielle simplifiée du BlueBoat présentée sur le site de BlueRobotics\footnote{\url{https://blueos.cloud/docs/latest/usage/overview/}}}
+    \includegraphics[width=0.8\linewidth]{images/blueboat_stack.png}
+    \caption{Architecture logicielle simplifiée du BlueBoat, adaptée de la documentation BlueOS.}
         \label{fig:archi_blueboat}
     \end{figure}
+
+Source : \url{https://blueos.cloud/docs/latest/usage/overview/}
 
 \subsection{Prise en main}
 
@@ -41,9 +43,9 @@ Afin de se connecter facilement aux BlueBoats où que l'ont soit, BlueRobotics v
         \item L'ordinateur de contrôle doit avoir une adresse IP de la forme 192.168.2.11X .
     \end{itemize}
 
-    Dans notre cas, puisque nous utilisons plusieurs robots à la fois, il faut changer les identifiants des robots dans le réseau MavLink via le paramètre SYSID_THISMAV. [//TODO : revoir l'histoire des GCS UDPIN IP]
+    Dans notre cas, puisque nous utilisons plusieurs robots à la fois, il faut changer les identifiants des robots dans le réseau MavLink via le paramètre \texttt{SYSID\_THISMAV}. [//TODO : revoir l'histoire des GCS UDPIN IP]
 
-    Afin de pouvoir reprendre le contrôle manuel du BlueBoat même en cas de perte de connexion à la Base Station, il a été décidé d'installer sur ceux-ci des récepteur RF [//TODO : demander le modèle exact des récepteurs et télécommandes à Le Bars] permettant l'utilisation de télécommandes RC. Il était déjà possible, via QGroundControl, de contrôler les robots avec des joysticks connectés à l'ordinateur mais cette solution offrait une portée moindre. L'ajout d'une télécommande aux Blueboats ne nécessite pas d'ajout de lignes de codes ou l'installation d'une extension particulière sur BlueOS mais simplement le changement de certains paramètres, en particulier les paramètres RCX_FUNCTION qui attribue à chaque channel RC un rôle, tel que prendre le contrôle ("RC_OVERRIDE_ON"), armer ou désarmer les moteurs, contrôler la poussée ou la rotation, etc. Les paramètres choisis dans notre cas sont les suivants : [//TODO : chercher paramètres sur les BlueBoats].
+    Afin de pouvoir reprendre le contrôle manuel du BlueBoat même en cas de perte de connexion à la Base Station, il a été décidé d'installer sur ceux-ci des récepteur RF [//TODO : demander le modèle exact des récepteurs et télécommandes à Le Bars] permettant l'utilisation de télécommandes RC. Il était déjà possible, via QGroundControl, de contrôler les robots avec des joysticks connectés à l'ordinateur mais cette solution offrait une portée moindre. L'ajout d'une télécommande aux Blueboats ne nécessite pas d'ajout de lignes de codes ou l'installation d'une extension particulière sur BlueOS mais simplement le changement de certains paramètres, en particulier les paramètres \texttt{RCX\_FUNCTION} qui attribuent à chaque channel RC un rôle, tel que prendre le contrôle (\texttt{RC\_OVERRIDE\_ON}), armer ou désarmer les moteurs, contrôler la poussée ou la rotation, etc. Les paramètres choisis dans notre cas sont les suivants : [//TODO : chercher paramètres sur les BlueBoats].
 
 \subsection{Simulation Ardurover}
 

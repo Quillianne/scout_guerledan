@@ -14,3 +14,8 @@ web_interface/db.sqlite3
 coordsA.npy
 coordsB.npy
 *.synctex.gz
+*.aux
+*.fdb_latexmk
+*.fls
+*.out
+*.toc
