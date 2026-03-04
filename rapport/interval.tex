@@ -1,8 +1,9 @@
 \section{Algorithme intervalle de localisation}
+\label{sec:interval}
 
 \subsection{Prédiction par contracteurs équivalents}
 
-Un contracteur réduit un ensemble de positions possibles en appliquant une contrainte (par exemple une mesure de distance ou une boîte GPS). On maintient un contracteur équivalent représentant les positions compatibles avec les contraintes accumulées.
+Un contracteur réduit un ensemble de positions possibles en appliquant une contrainte (par exemple une mesure de distance ou une boîte GPS). On maintient un contracteur équivalent représentant les positions compatibles avec les contraintes accumulées \cite{codac_docs,jaulin_interval}.
 
 Considérons le contracteur équivalent $C_{S1}(t-1)\subset\mathbb{R}^2$ du bateau \texttt{S1} à l'instant $t-1$. Le déplacement entre $t-1$ et $t$ est modélisé par
 $$d = \begin{pmatrix}dx\\dy\end{pmatrix},$$
@@ -23,7 +24,7 @@ $$C_{S1}(t)= f_{\mathrm{back}}^{-1}\bigl(C_{S1}(t-1)\bigr).$$
 En termes de contracteurs, la prédiction s'effectue par
 $$C_{S1}(t)=\mathrm{CtcInverse}\bigl(f_{\mathrm{back}},\;C_{S1}(t-1)\bigr).$$
 
-Une approche non récursive est également utilisée : au lieu de chaîner les contracteurs inverses, on pave $C(t-1)$ puis on utilise ce pavage comme antécédent pour la prédiction à l'instant $t$.
+Une approche non récursive est également utilisée : au lieu de chaîner les contracteurs inverses, on pave $C(t-1)$ puis on utilise ce pavage comme antécédent pour la prédiction à l'instant $t$, dans l'esprit des approches de type SIVIA \cite{jaulin_interval}.
 
 \begin{figure}[H]
 \centering

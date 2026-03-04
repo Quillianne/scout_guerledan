@@ -11,9 +11,11 @@ Le rapport sera rempli avec:
 
 5. tests.tex - Explication de la web_interface avec les fonctionnalités et vérification simulation puis réel pour valider l'algorithme ainsi que la théorie pour casser la singularité -> kiks
 
-6. results.tex - Résultats et conclusion
+6. results.tex - Résultats et conclusion - ajouter ce qu'on peut faire ensuite pour donner des pistes pour les prochains
 
 main.tex -> mets tous en commun en intégrant de manière dynamique les autres tex
 
 J'ai déja mis pas mal d'images dans le dossier rapport/images si jamais
+
+parler de pour quelles raisons parfois les ensembles de positions ne reduisent pas malgré les manoeuvres. -> soit parce que l'inflation est trop grande vis à vis de la manoeuvre qui est trop lente ou alors parce que il y a des angles plus intéressant dans lesquels aller par rapport à la formation pour réduire l'incertitude
 

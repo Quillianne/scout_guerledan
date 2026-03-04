@@ -11,6 +11,8 @@ Cette section documente la validation de l'algorithme intervalle selon un encha�
 
 L'objectif est de vérifier à la fois la cohérence logicielle de la chaîne complète et le comportement de l'estimation en présence d'incertitudes réelles (GPS, cap, distances).
 
+La campagne s'est déroulée en deux phases. La première semaine a servi à implémenter et valider \texttt{bblib}, jusqu'au test de déplacement en formation de deux BlueBoat. La seconde semaine, menée à Guerlédan, a été consacrée à la partie intervalle : grâce à \texttt{bblib} déjà opérationnelle, l'équipe a pu se concentrer sur l'observation par intervalles avec mesures réelles (bateau mère à quai et deux autres bateaux dans l'eau, pilotés en radiocommande). La commande basée directement sur la position estimée par intervalles n'était pas encore finalisée à ce stade.
+
 \subsection{Interface web de supervision}
 
 Le projet intègre une interface Django (dossier \texttt{web\_interface}) avec trois vues principales :
@@ -19,6 +21,8 @@ Le projet intègre une interface Django (dossier \texttt{web\_interface}) avec t
 	\item \textbf{Observation intervalles} : exécution pas-à-pas de l'algorithme avec affichage des boîtes et pavages ;
 	\item \textbf{Logs viewer} : rejeu temporel des logs et visualisation des sorties de prédiction.
 \end{itemize}
+
+Cette interface a été développée pour centraliser, dans un seul environnement, le contrôle des bateaux, la supervision de leur état et l'observation de la localisation par intervalles. Ce regroupement simplifie les opérations terrain (moins d'outils séparés, meilleure continuité entre action et diagnostic) tout en offrant plus de flexibilité d'usage. En particulier, l'intégration cartographique (OpenStreetMap) permet de visualiser les positions en contexte réel et de placer des waypoints directement sur la carte pour lancer des commandes de type \textit{go to waypoint}.
 
 Les routes API associées (\texttt{/api/boats/*}, \texttt{/api/interval/*}, \texttt{/api/replay/*}, \texttt{/api/logs/*}) permettent d'unifier pilotage, enregistrement, rejeu et analyse.
 
