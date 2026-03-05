@@ -1,0 +1,30 @@
+\section{Résultats, limites et perspectives}
+
+Ce projet a permis de valider une chaîne complète, depuis la communication avec les BlueBoats jusqu'à l'observation de la localisation par intervalles en simulation et en conditions réelles. Les résultats obtenus montrent que l'approche est exploitable opérationnellement : l'estimation reste cohérente, la visualisation est utilisable sur le terrain, et l'algorithme non récursif supprime la contrainte de temps de calcul qui limitait les premières versions.
+
+Les essais confirment également un point central : la qualité de localisation dépend fortement de la géométrie de flotte. Une configuration triangulaire maintenue trop longtemps conduit à une inflation progressive des ensembles admissibles. À l'inverse, des manoeuvres d'échappement introduites au bon moment permettent de contracter les boîtes et de restaurer une incertitude plus faible.
+
+\subsection{Bilan synthétique}
+
+Les contributions principales du groupe sont les suivantes :
+\begin{itemize}
+	\item mise en place d'une bibliothèque de contrôle/navigation robuste pour les BlueBoats ;
+	\item intégration d'une interface web unique pour superviser, observer et rejouer les essais ;
+	\item validation progressive simulation $\rightarrow$ essais à terre $\rightarrow$ essais sur l'eau ;
+	\item mise en évidence expérimentale de la singularité géométrique et de son atténuation par manoeuvres ;
+	\item adoption d'une version non récursive de l'algorithme intervalle, quasi instantanée en pratique.
+\end{itemize}
+
+\subsection{Améliorations proposées pour les prochains groupes}
+
+Plusieurs axes semblent particulièrement intéressants pour la suite :
+\begin{itemize}
+	\item \textbf{Valider en conditions réelles avec des modems acoustiques signés} : confronter l'approche aux contraintes de communication acoustique réelles et vérifier la robustesse de bout en bout hors émulation GPS.
+	\item \textbf{Quantifier finement la robustesse de l'estimation} : analyser l'effet des angles de manoeuvre du scout et des niveaux d'incertitude (GPS, distance, mouvement), puis identifier les manoeuvres qui maximisent le rétrécissement des boîtes.
+	\item \textbf{Concevoir une commande entièrement basée sur les intervalles} : piloter à partir des boîtes via une logique d'attraction/répulsion de type ``aimant'' et un déclenchement automatique des manoeuvres selon des indicateurs d'inflation (aire, allongement, vitesse d'ouverture).
+	\item \textbf{Mettre en place une autonomie de mission adaptative} : définir des règles de bascule entre surveillance, manoeuvre de réduction d'incertitude, repositionnement d'un scout et retour base selon la qualité d'estimation.
+\end{itemize}
+
+\subsection{Conclusion}
+
+Le socle technique est désormais suffisamment mature pour passer d'une logique de validation à une logique d'autonomie décisionnelle. L'enjeu des prochains groupes n'est plus seulement d'estimer correctement la position : il est de transformer l'information intervalle en actions de commande robustes, explicables et adaptées aux contraintes réelles du terrain.

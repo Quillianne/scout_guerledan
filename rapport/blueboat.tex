@@ -10,7 +10,7 @@ Dans le cadre du projet, les BlueBoat ont été utilisés comme plateforme expé
 
 Les BlueBoat (Figure \ref{fig:blueboat}) sont des USV développés par Blue Robotics \cite{bluerobotics_site,blueboat_docs}. Chaque bateau est une plateforme bicoque équipée de deux propulseurs, d'une Raspberry Pi 4 (avec carte Navigator) et de capteurs embarqués, notamment GPS et IMU.
 
-La pile logicielle repose sur BlueOS côté Raspberry Pi et ArduRover côté autopilote \cite{blueos_docs,ardurover_docs}. Cette architecture permet de configurer le véhicule, superviser son état, et envoyer des commandes soit via station sol (QGroundControl/Mission Planner), soit via scripts Python \cite{qgroundcontrol_docs,missionplanner_docs}. Une vue simplifiée de la pile est donnée Figure \ref{fig:archi_blueboat}.
+La pile logicielle repose sur BlueOS côté Raspberry Pi et ArduRover côté autopilote \cite{blueos_docs,ardurover_docs}. Cette architecture permet de configurer le véhicule, superviser son état, et envoyer des commandes soit via station sol (QGroundControl/Mission Planner), soit via scripts Python \cite{qgroundcontrol_docs,missionplanner_docs}. Une vue simplifiée de la pile est donnée Figure \ref{fig:archi_blueboat}, d'après la documentation BlueOS \cite{blueos_docs}.
 
 Pour les essais en flotte, la connexion réseau est assurée par une Base Station WiFi (Figure \ref{fig:base_station}), qui crée un réseau local dédié au pilotage et à la télémétrie.
 
@@ -34,8 +34,6 @@ Pour les essais en flotte, la connexion réseau est assurée par une Base Statio
         \caption{Base Station utilisée pour le réseau local des essais.}
         \label{fig:base_station}
     \end{figure}
-
-Source : \url{https://blueos.cloud/docs/latest/usage/overview/}.
 
 \subsection{Prise en main}
 

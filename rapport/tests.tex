@@ -2,29 +2,25 @@
 
 \subsection{Objectif de la campagne de tests}
 
-Cette section documente la validation de l'algorithme intervalle selon un enchaînement progressif :
+L'objectif de cette campagne est de valider le comportement de la localisation par intervalles dans des conditions de plus en plus réalistes, depuis des scénarios maîtrisés jusqu'aux essais en eau.
+
+La progression retenue a été la suivante :
 \begin{enumerate}
-	\item validation fonctionnelle des briques de communication,
-	\item observation en simulation/rejeu,
-	\item validation en conditions réelles sur les BlueBoats.
+	\item essais en simulation, notamment avec \texttt{test\_display.py},
+	\item essais à terre avec trois bateaux,
+	\item essais à Guerlédan avec le bateau mère au quai et deux scouts dans l'eau, pilotés en radiocommande et enregistrés.
 \end{enumerate}
 
-L'objectif est de vérifier à la fois la cohérence logicielle de la chaîne complète et le comportement de l'estimation en présence d'incertitudes réelles (GPS, cap, distances).
+\subsection{Interface web de supervision et d'analyse}
 
-La campagne s'est déroulée en deux phases. La première semaine a servi à implémenter et valider \texttt{bblib}, jusqu'au test de déplacement en formation de deux BlueBoat. La seconde semaine, menée à Guerlédan, a été consacrée à la partie intervalle : grâce à \texttt{bblib} déjà opérationnelle, l'équipe a pu se concentrer sur l'observation par intervalles avec mesures réelles (bateau mère à quai et deux autres bateaux dans l'eau, pilotés en radiocommande). La commande basée directement sur la position estimée par intervalles n'était pas encore finalisée à ce stade.
-
-\subsection{Interface web de supervision}
-
-Le projet intègre une interface Django (dossier \texttt{web\_interface}) avec trois vues principales :
+Le projet intègre une interface web unique qui regroupe les besoins opérationnels sur le terrain et en post-traitement. Du point de vue utilisateur, elle s'articule autour de trois vues complémentaires :
 \begin{itemize}
-	\item \textbf{Manager de flotte} : configuration des bateaux, visualisation GPS, actions de contrôle ;
-	\item \textbf{Observation intervalles} : exécution pas-à-pas de l'algorithme avec affichage des boîtes et pavages ;
-	\item \textbf{Logs viewer} : rejeu temporel des logs et visualisation des sorties de prédiction.
+	\item \textbf{Manager de flotte} : vue de contrôle des bateaux, de leur état et de leur position sur la carte ;
+	\item \textbf{Observation intervalles} : visualisation en direct de l'évolution des boîtes d'incertitude ;
+	\item \textbf{Replay de logs} : rejeu temporel d'un essai pour rejouer et comparer les comportements observés.
 \end{itemize}
 
-Cette interface a été développée pour centraliser, dans un seul environnement, le contrôle des bateaux, la supervision de leur état et l'observation de la localisation par intervalles. Ce regroupement simplifie les opérations terrain (moins d'outils séparés, meilleure continuité entre action et diagnostic) tout en offrant plus de flexibilité d'usage. En particulier, l'intégration cartographique (OpenStreetMap) permet de visualiser les positions en contexte réel et de placer des waypoints directement sur la carte pour lancer des commandes de type \textit{go to waypoint}.
-
-Les routes API associées (\texttt{/api/boats/*}, \texttt{/api/interval/*}, \texttt{/api/replay/*}, \texttt{/api/logs/*}) permettent d'unifier pilotage, enregistrement, rejeu et analyse.
+Cette centralisation évite de passer d'un outil à l'autre : l'opérateur peut surveiller la flotte, observer la qualité de localisation et rejouer les essais dans le même environnement. L'intégration cartographique facilite également le placement de waypoints et la compréhension du contexte spatial pendant les manoeuvres.
 
 \begin{figure}[H]
 	\centering
@@ -33,24 +29,6 @@ Les routes API associées (\texttt{/api/boats/*}, \texttt{/api/interval/*}, \tex
 	\label{fig:web_manager}
 \end{figure}
 
-\subsection{Observation de l'algorithme intervalle en ligne}
-
-La page \texttt{/interval/} fournit un mode d'observation en temps réel avec paramètres réglables :
-\begin{itemize}
-	\item \texttt{init\_uncertainty}, \texttt{gps\_uncertainty}, \texttt{dist\_uncertainty}, \texttt{move\_uncertainty},
-	\item précision de pavage et marge d'affichage,
-	\item mode récursif ou non récursif.
-\end{itemize}
-
-À chaque itération, l'endpoint \texttt{/api/interval/step/} retourne :
-\begin{itemize}
-	\item les positions GPS des trois bateaux,
-	\item les boîtes courantes des contracteurs,
-	\item les polygones de pavage des deux éclaireurs.
-\end{itemize}
-
-Cette boucle de visualisation permet de diagnostiquer rapidement les réglages d'incertitude et d'observer la contraction des ensembles en fonction des mesures disponibles.
-
 \begin{figure}[H]
 	\centering
 	\includegraphics[width=0.82\linewidth]{interface_web/observer.png}
@@ -58,14 +36,7 @@ Cette boucle de visualisation permet de diagnostiquer rapidement les réglages d
 	\label{fig:web_observer}
 \end{figure}
 
-\subsection{Rejeu de logs et reproductibilité}
-
-La vue \texttt{/logs/} permet de charger un fichier de log, d'appliquer un facteur de sous-échantillonnage et de rejouer l'expérience avec un curseur temporel. Ce mode est utilisé pour :
-\begin{itemize}
-	\item comparer plusieurs jeux de paramètres sur une même trace,
-	\item vérifier la stabilité du pipeline hors conditions terrain,
-	\item produire des figures et analyses reproductibles pour le rapport.
-\end{itemize}
+En pratique, la vue d'observation permet de suivre immédiatement l'effet d'un changement de trajectoire sur la taille des intervalles, tandis que le rejeu sert à comparer plusieurs réglages sur une même expérience et à produire des analyses reproductibles.
 
 \begin{figure}[H]
 	\centering
@@ -74,24 +45,27 @@ La vue \texttt{/logs/} permet de charger un fichier de log, d'appliquer un facte
 	\label{fig:web_replay}
 \end{figure}
 
-\subsection{Tests de comportement flotte (simulation/terrain)}
+Les essais de simulation et de terrain montrent qu'avec des incertitudes de mouvement relativement faibles, une formation imparfaite limite déjà l'inflation des boîtes. Lorsque des manoeuvres dédiées sont introduites, la réduction d'incertitude est nettement plus marquée, ce qui augmente le temps disponible avant de devoir déclencher la manoeuvre suivante.
 
-Les scripts de test du dépôt couvrent plusieurs scénarios représentatifs :
-\begin{itemize}
-	\item \texttt{test\_multiple\_boat.py} : exécution simultanée de deux bateaux (cap imposé + poursuite),
-	\item \texttt{test\_formation\_triangle.py} : génération de cibles pour maintenir une formation triangulaire,
-	\item \texttt{test\_mavlinkrest.py}, \texttt{test\_load\_config.py}, \texttt{test\_set\_mode\_manual.py} : vérification des briques de communication et de configuration.
-\end{itemize}
-
-La validation est réalisée d'abord avec des données contrôlées (rejeu/simulation), puis avec les données acquises sur les BlueBoats. Cette progression limite les risques opérationnels et facilite l'identification des causes d'erreur.
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.82\linewidth]{images/box_sizes_escape.png}
+	\caption{Évolution de la taille des boîtes en simulation : les phases de manoeuvre correspondent à une diminution marquée de l'incertitude.}
+	\label{fig:box_sizes_escape}
+\end{figure}
 
 \subsection{Validation de l'évitement de singularité}
 
-La stratégie retenue consiste à éviter les géométries dégénérées au niveau des trajectoires et à renforcer la correction par fusion multi-contraintes. En pratique, les scénarios de test ont confirmé les points suivants :
-\begin{itemize}
-	\item lorsque les bateaux restent trop alignés, les ensembles estimés s'étirent et la localisation devient moins discriminante ;
-	\item dès qu'une excitation latérale est introduite (triangle, suivi avec variation de cap), l'intersection des contraintes se resserre ;
-	\item la combinaison distances + boîte GPS du bateau mère + boîtes voisins réduit significativement l'ambiguïté.
-\end{itemize}
+La singularité observée dans nos essais correspond au cas où la flotte reste trop longtemps dans la même configuration triangulaire. Dans ce régime, l'ensemble admissible de chaque scout tend à s'étirer en arc : l'épaisseur reste contenue, mais la longueur de l'arc augmente au fil des itérations, ce qui dégrade la précision utile.
 
-Ces observations sont cohérentes avec l'analyse théorique de la section précédente et valident l'approche pratique retenue pour éviter les cas mal conditionnés.
+Les essais (simulation puis terrain) confirment ce comportement : avec des incertitudes de mouvement faibles, une formation légèrement imparfaite limite déjà l'inflation. En revanche, lorsqu'on maintient trop longtemps une géométrie quasi inchangée, l'incertitude repart à la hausse.
+
+La stratégie efficace a donc été d'introduire des manoeuvres d'échappement qui font varier la géométrie de la flotte. On observe alors une contraction nette des boîtes, ce qui redonne de la marge avant la manoeuvre suivante. Cet effet est visible en simulation mais aussi dans les logs des essais réels. Ces résultats sont cohérents avec l'analyse théorique de la section~\ref{sec:interval}.
+
+\subsection{Temps de calcul : récursif vs non récursif}
+
+Lors des premiers essais en mode récursif, le profil \texttt{compute\_times\_no\_reset} a montré une dérive du temps de calcul au fil des itérations : la chaîne de contracteurs s'allongeait progressivement, ce qui dégradait la réactivité.
+
+Une solution transitoire a consisté, en fin de manoeuvre, à casser la chaîne en remplaçant le contracteur par la boîte courante (approche \texttt{compute\_time\_reset}). Cette stratégie s'est révélée efficace pour borner le temps de calcul.
+
+Finalement, la version non récursive est quasi instantanée en pratique, ce qui supprime ce verrou de performance tout en conservant une qualité de résultat comparable. Dans la configuration actuelle, le temps de calcul n'est donc plus un facteur limitant pour l'exploitation terrain.

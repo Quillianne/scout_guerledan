@@ -176,7 +176,7 @@ La classe \texttt{IMU} lit l'orientation du bateau depuis le message MAVLink \te
 
 \texttt{get\_euler\_angles()} retourne le triplet $(\phi, \theta, \psi)$ en radians. Un cache interne (\texttt{\_last\_euler}) conserve la dernière valeur valide, de sorte que la méthode ne retourne jamais \texttt{None} après la première lecture réussie, même lors de micro-coupures réseau.
 
-\texttt{get\_attitude\_dict()} retourne un dictionnaire enrichi incluant \texttt{yaw\_deg}, le cap normalisé dans $[0°, 360°]$, directement exploitable par la couche Navigation.
+\texttt{get\_attitude\_dict()} retourne un dictionnaire enrichi incluant \texttt{yaw\_deg}, le cap normalisé dans $[0^\circ, 360^\circ]$, directement exploitable par la couche Navigation.
 
 La classe \texttt{GPS} lit la position du bateau depuis deux sources MAVLink possibles, par ordre de priorité :
 \begin{enumerate}
@@ -205,7 +205,7 @@ Les méthodes principales sont \texttt{send\_cmd\_motor(left, right)} pour un en
 \label{sec:bblib:navigation}
 La classe \texttt{Navigation} réalise la boucle de guidage du bateau. Elle repose sur un \textbf{régulateur proportionnel} sur l'erreur de cap :
 \[
-  e = \psi_{\text{cible}} - \psi_{\text{actuel}} \quad (\text{normalisée dans } {[-180°, 180°]})
+  e = \psi_{\text{cible}} - \psi_{\text{actuel}} \quad (\text{normalisée dans } {[-180^\circ, 180^\circ]})
 \]
 \[
   \text{correction} = K_p \cdot e, \qquad \begin{cases} \text{moteur gauche} = v_{\text{base}} - \text{correction} \\ \text{moteur droit} = v_{\text{base}} + \text{correction} \end{cases}
