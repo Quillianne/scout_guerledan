@@ -1,4 +1,4 @@
-\section{Mise en marche des BlueBoat}
+\section{Blueboat}
 
 À défaut d'avoir des AUV à disposition, il a été décidé avec nos encadrants d'utiliser des blueboats pour réaliser notre projet. Cette partie vise à présenter ces robots, expliquer leur fonctionnement, et permettre à de futurs élèves d'apprendre à les connaître et de les prendre en main facilement.
 
@@ -17,12 +17,10 @@ Afin de se connecter facilement aux BlueBoats où que l'ont soit, BlueRobotics v
 
 \begin{figure}[h]
         \centering
-    \includegraphics[width=0.8\linewidth]{images/blueboat_stack.png}
-    \caption{Architecture logicielle simplifiée du BlueBoat, adaptée de la documentation BlueOS.}
+        \includegraphics[width=0.8\linewidth]{images/archi.png}
+        \caption{Architecture logicielle simplifiée du BlueBoat présentée sur le site de BlueRobotics\footnote{\url{https://blueos.cloud/docs/latest/usage/overview/}}}
         \label{fig:archi_blueboat}
     \end{figure}
-
-Source : \url{https://blueos.cloud/docs/latest/usage/overview/}
 
 \subsection{Prise en main}
 
@@ -43,11 +41,9 @@ Source : \url{https://blueos.cloud/docs/latest/usage/overview/}
         \item L'ordinateur de contrôle doit avoir une adresse IP de la forme 192.168.2.11X .
     \end{itemize}
 
-    Dans notre cas, puisque nous utilisons plusieurs robots à la fois, il faut changer les identifiants des robots dans le réseau MavLink via le paramètre \texttt{SYSID\_THISMAV}. [//TODO : revoir l'histoire des GCS UDPIN IP]
+    Dans notre cas, puisque nous utilisons plusieurs robots à la fois, il faut changer les identifiants des robots dans le réseau MavLink via le paramètre SYSID_THISMAV. [//TODO : revoir l'histoire des GCS UDPIN IP]
 
-    Afin de pouvoir reprendre le contrôle manuel du BlueBoat même en cas de perte de connexion à la Base Station, il a été décidé d'installer sur ceux-ci des récepteur RF [//TODO : demander le modèle exact des récepteurs et télécommandes à Le Bars] permettant l'utilisation de télécommandes RC. Il était déjà possible, via QGroundControl, de contrôler les robots avec des joysticks connectés à l'ordinateur mais cette solution offrait une portée moindre. L'ajout d'une télécommande aux Blueboats ne nécessite pas d'ajout de lignes de codes ou l'installation d'une extension particulière sur BlueOS mais simplement le changement de certains paramètres, en particulier les paramètres \texttt{RCX\_FUNCTION} qui attribuent à chaque channel RC un rôle, tel que prendre le contrôle (\texttt{RC\_OVERRIDE\_ON}), armer ou désarmer les moteurs, contrôler la poussée ou la rotation, etc. Les paramètres choisis dans notre cas sont les suivants : [//TODO : chercher paramètres sur les BlueBoats].
-
-\subsection{Simulation Ardurover}
+    Afin de pouvoir reprendre le contrôle manuel du BlueBoat même en cas de perte de connexion à la Base Station, il a été décidé d'installer sur ceux-ci des récepteur RF [//TODO : demander le modèle exact des récepteurs et télécommandes à Le Bars] permettant l'utilisation de télécommandes RC. Il était déjà possible, via QGroundControl, de contrôler les robots avec des joysticks connectés à l'ordinateur mais cette solution offrait une portée moindre. L'ajout d'une télécommande aux Blueboats ne nécessite pas d'ajout de lignes de codes ou l'installation d'une extension particulière sur BlueOS mais simplement le changement de certains paramètres, en particulier les paramètres RCX_FUNCTION qui attribue à chaque channel RC un rôle, tel que prendre le contrôle ("RC_OVERRIDE_ON"), armer ou désarmer les moteurs, contrôler la poussée ou la rotation, etc. Les paramètres choisis dans notre cas sont les suivants : [//TODO : chercher paramètres sur les BlueBoats].
 
 \subsection{Observations sur le comportement des BlueBoats}
 
@@ -57,3 +53,9 @@ Source : \url{https://blueos.cloud/docs/latest/usage/overview/}
 \subsection{Autres remarques et conseils}
 
     Il est possible d'utiliser ROS et MAVROS 1 ou 2 pour contrôler les BlueBoats, et ce grâce à des extensions disponibles sur BlueOS. L'extension ROS a été crée par BlueRobotics et est disponible quelle que soit la version de l'OS tant que cette dernière est suffisament récente. Cependant, l'extension ROS2 est elle compatible uniquement avec la version 64 bits de BlueOS (la version par défaut étant une version 32 bits). La dernière version 64 bits de Blue OS au moment de l'écriture de ces lignes (28/02/2026) est accessible via ce lien : \url{https://github.com/bluerobotics/BlueOS/releases/download/1.5.0-beta.20/BlueOS-raspberry-linux-arm64-v8-bookworm-pi5.zip}\footnote{\url{https://blueos.cloud/docs/stable/usage/installation/} propose les dernières versions 32 et 64 bits de BlueOS. Bien que le nom du fichier comporte "pi5", cette version de l'OS est bien compatible avec une Raspberry Pi 4, ou tout du moins les modèles de Raspberry Pi 4 présent par défaut dans les BlueBoats.}. Il suffit pour l'installer d'extraire le fichier .img contenu dans le fichier zip et de le flasher sur une carte microSD à l'aide par exemple de Raspberry Pi Imager\footnote{\url{https://www.raspberrypi.com/software/}} ou de Balena Etcher\footnote{\url{https://www.balena.io/etcher/}}. L'installation de l'extension ROS2 peut alors théoriquement se faire directement sur la nouvelle version de BlueOS 64bits, mais il a été constaté que BlueOS imposait un timeout de 120s sur les téléchargements et installations, et ROS2 étant assez lourd et donc long à télécherger et installer, il n'a donc pas été possible pour nous de l'installer de cette manière. Il est cependant possible d'installer manuellement l'extension via le terminal sur la Raspberry PI en suivant les instructions données à \url{https://github.com/itskalvik/blueos-ros2}.
+
+\subsection{Simulation Ardurover}
+
+    Entre la première et la deuxième campagne de tests à Guerlédan, nous avons souhaité tester une simulation plus réaliste que celles que nous avions déjà réalisée avec python pour tester nos algorithmes de localisation. Notamment, nous souhaitions obtenir une simulation de robot controlable de la même façon que les BlueBoat, et avec une cinématique plus proche de la réalité. Mr. Lebars nous a fournit une solution potentielle pour y parvenir sous la forme du document \cite{lebars_simu} [\\Biblio : https://webperso.ensta.fr/lebars/Share/fake_blueboat.pdf]. Ardurover permet en effet de créer une simulation de drone de surface que l'on peut contrôler via MavLink ou ROS de la même manière qu'un vrai BlueBoat, ainsi que le connecter via TCP à GQC ou d'autres logiciels similaires pour pouvoir visualiser l'état du robot. Cela nécessite une configuration préccise, chaque bateau simulé devant communiquer en TCP avec plusieurs programmes sur des ports différents tels que MavRos, QGC, etc. Utiliser plusieurs bateaux simulés à la fois demande aussi de s'assurer que chaque robot dispose de ses propres ports TCP, noeuds ROS, identifiants mavlink, etc. La configuration requise pour y parvenir peut cependant simplement être sauvegardée sous forme de fichiers de paramètre et d'un fichier .sh contenant les commandes à lancer pour permettre de relancer facilement la simulation avec la bonne configuration les fois suivantes. Les fichiers nécessaires au bon lancement de la simulation avec 3 robots sont disponibles sur le github du projet \cite{github}. Le résultat donné sur QGC est visible Figure \ref{fig:simu_QGC}. On y observe bien la présence des trois robots et leur capacité à se déplacer. Cependant, bien que les capteurs des robots soit légèrement bruité, le mouvement des robots semble idéal. Notamment, imposer une commande de rotation pure au robot le fait bien tourner sur lui même contrairement à ce qui a été observé lors de nos tests réels. De plus, en commandant les robots via MavLink, il semblerait que changer le nombre de robot modifie significativement la commande à envoyer à un robot pour obtenir un comportement voulu. Par exemple, pour une même rotation, un robot seul requérait une commande bien plus élevé qu'un robot d'une simulation en contenant 3. Une explication possible est l'augmentation des temps de calcul nécessaires pour simuler plusieurs robots à chaque fois, puisque cela nécessite ici de lancer pluseurs instances d'Ardupilot. 
+    Pour notre utilisation, cette solution présente aussi un autre défaut car QGroundControl ne permet pas de dessiner des figures géométriques sur la carte, et donc ne nous permet pas de visualiser en direct l'estimation de la position des robots par intervalles. Il semblerait que Mission planner le permette, mais ce dernier n'est pas adapté aux systèmes Linux ou MacOS utilisés par les membres de ce groupe et il a donc été décidé de créer notre propre simulation et interface graphique pour communiquer avec les BlueBoats. 
+    
