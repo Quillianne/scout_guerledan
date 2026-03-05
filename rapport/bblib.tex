@@ -69,9 +69,9 @@
 \subsection{Contexte et motivation}
 \label{sec:bblib:contexte}
 
-\textbf{MAVLink} est le protocole de communication utilisé par ArduRover sur les BlueBoat. Il transporte des messages normalisés (par exemple \texttt{ATTITUDE}, \texttt{GLOBAL\_POSITION\_INT}, \texttt{RC\_CHANNELS\_OVERRIDE}, \texttt{COMMAND\_LONG}) identifiés par type de message et par couple (\texttt{system\_id}, \texttt{component\_id}). En usage classique, ces messages sont consommés via un flux réseau UDP/TCP maintenu en continu par le client de contrôle.
+\textbf{MAVLink} est le protocole de communication utilisé par ArduRover sur les BlueBoat \cite{mavlink_docs,ardurover_docs}. Il transporte des messages normalisés (par exemple \texttt{ATTITUDE}, \texttt{GLOBAL\_POSITION\_INT}, \texttt{RC\_CHANNELS\_OVERRIDE}, \texttt{COMMAND\_LONG}) identifiés par type de message et par couple (\texttt{system\_id}, \texttt{component\_id}). En usage classique, ces messages sont consommés via un flux réseau UDP/TCP maintenu en continu par le client de contrôle.
 
-\textbf{mavlink2rest} est un serveur léger intégré à BlueOS qui fait le pont entre le flux MAVLink binaire du Pixhawk et une \textbf{API HTTP/REST}. Son fonctionnement est le suivant :
+\textbf{mavlink2rest} est un serveur léger intégré à BlueOS qui fait le pont entre le flux MAVLink binaire du Pixhawk et une \textbf{API HTTP/REST} \cite{blueos_docs,mavlink2rest_docs}. Son fonctionnement est le suivant :
 
 \begin{enumerate}
   \item Il reçoit en continu les messages MAVLink du Pixhawk via la liaison série et les stocke en mémoire (toujours le message le plus récent de chaque type).
@@ -95,7 +95,7 @@ lat = data["message"]["lat"] / 1e7   # conversion de 1e-7 degres vers degres
 lon = data["message"]["lon"] / 1e7
 \end{lstlisting}
 
-La bibliothèque Python officielle \texttt{pymavlink} permet d'ouvrir des connexions MAVLink bas niveau (UDP, TCP, série) et d'envoyer/recevoir des messages binaires. C'est l'approche classique. Cependant, dans notre contexte, elle présente plusieurs inconvénients majeurs.
+La bibliothèque Python officielle \texttt{pymavlink} permet d'ouvrir des connexions MAVLink bas niveau (UDP, TCP, série) et d'envoyer/recevoir des messages binaires \cite{pymavlink_docs}. C'est l'approche classique. Cependant, dans notre contexte, elle présente plusieurs inconvénients majeurs.
 
 \begin{table}[h]
   \centering
@@ -231,7 +231,7 @@ Pour éviter de coder les adresses IP en dur dans les scripts, la configuration 
 ]
 \end{lstlisting}
 
-La classe \texttt{BlueBoatConfig} charge ce fichier avec des valeurs par défaut en cas d'absence. \texttt{init\_from\_config(boat\_id)} instancie en une seule ligne l'ensemble des composants d'un bateau (\texttt{MavlinkLink}, \texttt{IMU}, \texttt{GPS}, \texttt{MotorDriver}, \texttt{Navigation}). \texttt{init\_all()} parcourt tous les bateaux configurés et retourne un dictionnaire indexé par \texttt{boat\_id}, utilisé par les scripts de mission multi-bateaux.
+La classe \texttt{BlueBoatConfig} charge ce fichier avec des valeurs par défaut en cas d'absence. La méthode \texttt{init\_from\_config}, appelée avec l'argument \texttt{boat\_id}, instancie en une seule ligne l'ensemble des composants d'un bateau (\texttt{MavlinkLink}, \texttt{IMU}, \texttt{GPS}, \texttt{MotorDriver}, \texttt{Navigation}). \texttt{init\_all()} parcourt tous les bateaux configurés et retourne un dictionnaire indexé par \texttt{boat\_id}, utilisé par les scripts de mission multi-bateaux.
 
 % ---------------------------------------------------------------------------
 \subsection{Interface graphique de supervision — \texttt{boat\_control\_gui.py}}
@@ -266,7 +266,7 @@ Des boutons permettent d'\textbf{armer}, de \textbf{désarmer} et de lancer un \
 \label{sec:bblib:fake}
 % ---------------------------------------------------------------------------
 
-Pour permettre le développement et les tests sans accès physique aux bateaux, un serveur HTTP simulant l'API mavlink2rest a été développé dans \texttt{fake\_mavlink2rest.py}. Il démarrage un serveur HTTP léger par port (un par bateau simulé), chacun générant des données synthétiques :
+Pour permettre le développement et les tests sans accès physique aux bateaux, un serveur HTTP simulant l'API mavlink2rest a été développé dans \texttt{fake\_mavlink2rest.py}. Il démarre un serveur HTTP léger par port (un par bateau simulé), chacun générant des données synthétiques :
 \begin{itemize}
   \item Position GPS animée autour d'un point de base avec bruit gaussien ;
   \item Attitude (roll, pitch, yaw) avec bruit et dérive ;
@@ -274,10 +274,10 @@ Pour permettre le développement et les tests sans accès physique aux bateaux, 
   \item Gestion des commandes \texttt{POST} : armement, changement de mode, RC override.
 \end{itemize}
 
-Ce simulateur a été utilisé lors de la semaine de formation pour tester rapidement les boucles de commande, valider \texttt{bblib} et \texttt{boat\_control\_gui.py}, et vérifier les scripts de mission multi-bateaux, sans mobiliser le matériel.
+Ce simulateur a été particulièrement utilisé pendant la deuxième semaine pour valider plus rapidement l'interface et exécuter des tests de type SITL de manière simple. Par rapport à un SITL ArduRover complet, il est plus léger à mettre en œuvre : au lieu de simuler toute la pile ArduRover et l'ensemble MAVLink, il se contente de renvoyer des réponses HTTP/JSON cohérentes avec les endpoints attendus par nos scripts. Ce compromis accélère fortement les tests d'intégration de \texttt{bblib} et de l'interface sans mobiliser le matériel.
 
 % ---------------------------------------------------------------------------
-\subsection{Tests de la première semaine de formation}
+\subsection{Tests de la première semaine}
 \label{sec:bblib:tests}
 % ---------------------------------------------------------------------------
 
@@ -306,7 +306,7 @@ Le script \texttt{test\_bblib.py} fournit une interface en ligne de commande pou
   \end{tabular}
 \end{table}
 
-Plusieurs scripts complémentaires ont été développés durant la semaine de formation :
+Plusieurs scripts complémentaires ont été développés durant cette première semaine :
 
 \begin{itemize}
   \item \textbf{\texttt{test\_mavlinkrest.py}} : tests bas niveau de l'interface REST — vérification des codes HTTP, structure des réponses JSON, latences de requêtes GET et POST.
@@ -319,7 +319,7 @@ Plusieurs scripts complémentaires ont été développés durant la semaine de f
 \begin{figure}[h]
   \centering
   \includegraphics[width=0.6\textwidth]{images/test_formation.png}
-  \caption{Trace GPS d'un test de formation en triangle avec les trois bateaux.}
+  \caption{Photo de deux BlueBoat dans l'eau lors d'un essai de déplacement en formation.}
   \label{fig:test_formation}
 \end{figure}
 
@@ -331,6 +331,8 @@ Les tests ont permis de valider le bon fonctionnement de l'ensemble de la chaîn
   \item \textbf{Robustesse réseau} : les coupures WiFi passagères sont gérées par l'option \texttt{silent\_errors} de \texttt{MavlinkLink} et le cache interne de l'\texttt{IMU}, qui évitent les exceptions non contrôlées dans les threads de monitoring.
   \item \textbf{Précision GPS} : la précision observée est de l'ordre de 1 à 3~mètres, cohérente avec du GPS standard sans correction différentielle.
 \end{itemize}
+
+Cette première phase s'est conclue par la validation d'un déplacement en formation de deux BlueBoat, utilisé comme test d'intégration final de \texttt{bblib} avant les essais terrain.
 
 % ---------------------------------------------------------------------------
 \subsection{Bilan}

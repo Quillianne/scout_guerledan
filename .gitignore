@@ -19,3 +19,5 @@ coordsB.npy
 *.fls
 *.out
 *.toc
+*.blg
+*.bbl
